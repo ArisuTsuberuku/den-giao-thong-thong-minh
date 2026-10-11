@@ -94,6 +94,9 @@
     })(h);
     cap_nhat_truot.push(taoTruot(muc_xe, 'ti_le_phai', 'Rẽ phải (làn riêng, không qua đèn)', 0, 40, 5,
       function () { return cai.ti_le_phai; }, function (v) { cai.ti_le_phai = v; }, function (v) { return soVn(v) + ' %'; }));
+    cap_nhat_truot.push(taoTruot(muc_xe, 'tre_phan_ung', 'Trễ phản ứng của người lái', 0, 2, 0.1,
+      function () { return cai.tre_phan_ung / 1000; }, function (v) { cai.tre_phan_ung = Math.round(v * 1000); },
+      function (v) { return v === 0 ? 'không trễ' : soVn(v, 1) + ' s'; }));
     cap_nhat_truot.push(taoTruot(muc_xe, 'toc_do_xe', 'Tốc độ xe', 60, 180, 10,
       function () { return cai.toc_do; }, function (v) { cai.toc_do = v; }, function (v) { return soVn(v) + ' mm/s'; }));
 
@@ -151,6 +154,7 @@
       }
       if (isFinite(d.cai.ti_le_phai)) cai.ti_le_phai = Number(d.cai.ti_le_phai);
       if (isFinite(d.cai.toc_do)) cai.toc_do = Number(d.cai.toc_do);
+      if (isFinite(d.cai.tre_phan_ung)) cai.tre_phan_ung = Number(d.cai.tre_phan_ung);
       if ([1, 2, 4, 8, 16].indexOf(d.toc_do) >= 0) tt.toc_do = d.toc_do;
       tt.hien_vung = !!d.hien_vung;
     } catch (e) { /* dữ liệu cũ hỏng: dùng mặc định */ }

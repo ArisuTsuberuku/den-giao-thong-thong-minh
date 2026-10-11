@@ -274,7 +274,7 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 6. Báo cáo ghi mỗi hướng có "1 làn đi thẳng/rẽ phải, 1 làn rẽ trái" và dùng cảm biến âm thanh; sa bàn thực tế là làn ngoài đi thẳng, làn trong thẳng hoặc rẽ trái, rẽ phải có làn riêng, không có cảm biến âm thanh. Cần sửa báo cáo cho khớp.
 7. Thư mục `Decal sa ban/Khung den` còn tệp cũ `Duong_cat_khung_den_A4.pdf` (Lần 05); dưỡng cắt mới là `Duong_cat_khung_den_A3.pdf`. Có thể xóa tệp A4 cũ (bản lưu vẫn còn trong `Nhật ký thiết kế/Lần 05`).
 8. Thử code trên board thật theo danh sách trong `README.md` của thư mục code: 24 bóng đèn (lệnh `thuday`), chu kì cố định, bản tin gõ qua Serial, camera ở chế độ thu ảnh.
-9. Mô phỏng: khi chưa có cắt xanh sớm, chế độ thích ứng thua chế độ cố định lúc rất ít xe rẽ trái (camera không biết xe làn trong đi thẳng hay rẽ). Có cắt sớm 5 s thì thích ứng hơn cố định ở cả 6 kiểu dòng xe đã thử. Cần kiểm lại trên sa bàn thật, nhất là việc camera đếm về 0 có đủ ổn định để cắt sớm không.
+9. Mô phỏng (có trễ phản ứng của người lái 1 s): chế độ thích ứng có cắt sớm hơn chế độ cố định ở 5 trong 6 kiểu dòng xe, nhưng thua 24 % khi rất ít xe rẽ trái, vì camera không biết xe làn trong đi thẳng hay rẽ nên bộ quyết định mở riêng từng hướng. Hướng cải tiến: bộ quyết định mức 2, hoặc cho "thẳng cả hai" khi làn trong thưa. Cần kiểm lại trên sa bàn thật, nhất là việc camera đếm về 0 có đủ ổn định để cắt sớm không.
 
 ## 12. Nhật ký thay đổi
 
@@ -296,3 +296,4 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 | 2026-10-11 | Đổi luật 5.2: so thời gian hai phương án; bằng nhau và cả hai làn trong có xe thì chọn riêng từng hướng. Mô phỏng 60 phút: thích ứng giảm thời gian chờ 25–95 % ở 4 kiểu dòng xe, ngang bằng khi dòng xe đều, tăng 57 % khi rất ít xe rẽ trái |
 | 2026-10-11 | Thầy tạo repo GitHub `ArisuTsuberuku/den-giao-thong-thong-minh`; đã đẩy code lên nhánh `main` |
 | 2026-10-11 | Thêm cắt xanh sớm theo yêu cầu của thầy: tổ hợp đang xanh hết xe quá 5 s mà hướng khác có xe chờ thì chuyển vàng ngay; bước kế không còn xe thì bỏ qua. Mô phỏng 60 phút: thời gian chờ trung bình của chế độ thích ứng giảm thêm 17–70 % so với khi chưa cắt sớm, và thấp hơn chế độ cố định 10–98 % ở cả 6 kiểu dòng xe |
+| 2026-10-11 | Web mô phỏng thêm trễ phản ứng của người lái (mặc định 1 s, mỗi người lái lệch 0,7–1,3 lần): xe trong hàng chờ khởi hành lần lượt, xả hàng khoảng 2,1 s mỗi xe. Chạy lại bảng so sánh 60 phút: thích ứng có cắt sớm thấp hơn cố định 45–99 % ở 5 kiểu dòng xe, cao hơn 24 % ở kiểu rất ít rẽ trái (số ở dòng trên là khi chưa có trễ phản ứng) |

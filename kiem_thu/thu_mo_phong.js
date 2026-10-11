@@ -63,6 +63,37 @@ for (const [ten, cai] of Object.entries(KIEU)) {
   }
 }
 
+// ---------- 1b) Trễ phản ứng của người lái ----------
+// Chế độ cố định; thả 4 xe rẽ trái vào làn trong Hướng 1 ngay sau khi pha rẽ trái vừa hết, để cả 4
+// xếp hàng chờ gần trọn một chu kì. Khi đèn rẽ trái xanh lại, đo lúc từng xe qua vạch dừng.
+function xaHang(tre) {
+  const cai = { luu_luong: [0, 0, 0, 0, 0], ti_le_trai: [0, 0, 0, 0, 0], ti_le_phai: 0, toc_do: 120, tre_phan_ung: tre };
+  const ts = QD.thamSoMacDinh(); ts.che_do = QD.CHE_DO_CO_DINH;
+  const mp = new MoPhong({ hat: 3, cai, ts });
+  let t_xanh = -1;
+  const qua = [], da = new Set();
+  for (let i = 0; i < 200 * 25 && qua.length < 4; i++) {
+    if (i === 20 * 25) for (let k = 0; k < 4; k++) mp.hang_cho[1].push({ t_sinh: mp.t, huong_di: 'trai', uu_tien: false });
+    mp.buoc(40);
+    if (t_xanh < 0 && mp.t > 40000 && mp.dk.mauNhom(1, mp.t) === DieuKhien.MAU_XANH) {
+      t_xanh = mp.t;
+      kiem(mp.xe.length === 4 && mp.xe.every(x => x.v < 10 && !x.da_qua), 'cả 4 xe phải đang đứng chờ lúc đèn rẽ trái xanh');
+    }
+    for (const x of mp.xe) if (x.da_qua && !da.has(x.id)) { da.add(x.id); qua.push((mp.t - t_xanh) / 1000); }
+  }
+  return qua;
+}
+{
+  const khong = xaHang(0), co = xaHang(1000);
+  const cach = q => ((q[3] - q[0]) / 3);
+  console.log('\nXả hàng 4 xe sau khi đèn xanh (giây, tính từ lúc xanh):');
+  console.log('  không trễ phản ứng: ' + khong.map(v => v.toFixed(2)).join(', ') + '   cách nhau TB ' + cach(khong).toFixed(2) + ' s');
+  console.log('  trễ phản ứng 1 s  : ' + co.map(v => v.toFixed(2)).join(', ') + '   cách nhau TB ' + cach(co).toFixed(2) + ' s');
+  kiem(khong.length === 4 && co.length === 4, 'cả 4 xe phải qua được vạch dừng');
+  kiem(co[0] - khong[0] > 0.6 && co[0] - khong[0] < 1.4, 'xe đầu hàng phải trễ khoảng 1 s so với khi không có trễ phản ứng');
+  kiem(cach(co) - cach(khong) > 0.5, 'các xe sau phải khởi hành lần lượt, cách nhau thêm ít nhất 0,5 s');
+}
+
 // ---------- 2) Bảng so sánh (60 phút mô phỏng, 3 hạt giống) ----------
 // Ba cột: cố định; thích ứng không cắt xanh sớm; thích ứng có cắt xanh sớm 5 s (mặc định).
 console.log('\nSo sánh thời gian chờ trung bình (giây), 60 phút mô phỏng, trung bình 3 lần chạy:');

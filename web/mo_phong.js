@@ -180,7 +180,8 @@
       luu_luong: [0, 6, 6, 6, 6],      // xe mô hình mỗi phút, theo hướng 1..4
       ti_le_trai: [0, 25, 25, 25, 25], // % xe rẽ trái
       ti_le_phai: 15,                  // % xe rẽ phải (đi làn riêng, không qua đèn)
-      toc_do: 120                      // mm/s
+      toc_do: 120,                     // mm/s
+      tre_phan_ung: 1000               // ms: xe đang đứng yên thấy đi được (đèn xanh, xe trước đã rời) thì chừng này sau mới lăn bánh
     };
   }
 
@@ -191,7 +192,9 @@
   function MoPhong(tuy_chon) {
     tuy_chon = tuy_chon || {};
     this.hat = tuy_chon.hat || 1;
-    this.cai = tuy_chon.cai || caiDatMacDinh();
+    this.cai = tuy_chon.cai || {};
+    var mac_dinh = caiDatMacDinh();
+    for (var k in mac_dinh) if (this.cai[k] === undefined) this.cai[k] = mac_dinh[k];
     this.ts = tuy_chon.ts || QD.thamSoMacDinh();
     this.khiSuKien = null;             // hàm(loại, dữ liệu, mô phỏng)
     this.datLai();
@@ -271,6 +274,8 @@
         uu_tien: dau.uu_tien, mau: dau.uu_tien ? '#ffffff' : MAU_XE[Math.floor(this.ngau_nhien_mau() * MAU_XE.length)],
         t_sinh: dau.t_sinh, cho: this.t - dau.t_sinh, da_qua: false, di_tiep: false, quyet_vang: false,
         chan: 0, phanh: false, x: dd.x[0], y: dd.y[0], goc: 0, dx: 0, dy: 0,
+        he_so_pu: 0.7 + 0.6 * this.ngau_nhien_mau(),   // mỗi người lái nhanh chậm khác nhau: 0,7 đến 1,3 lần mức chung
+        t_san_sang: -1,                                // lúc xe đang đứng yên bắt đầu thấy đi được
         nhom: (h - 1) * 2 + (dau.huong_di === 'trai' ? 1 : 0),
         ra: (h - 1 + (dau.huong_di === 'thang' ? 2 : (dau.huong_di === 'trai' ? 1 : 3))) % 4 + 1,   // ra ở nhánh nào
         lan_ra: (ten === 'thang_ngoai' || ten === 'phai') ? 'ngoai' : 'trong'
@@ -299,7 +304,7 @@
         var b = gan[i];
         for (var k = -1; k <= 1; k++) {
           var ex = b.x + b.dx * 17 * k - tam.x, ey = b.y + b.dy * 17 * k - tam.y;
-          if (ex * ex + ey * ey < R_CHAM * R_CHAM) { trong = d - 5; chan = b.id; break; }
+          if (ex * ex + ey * ey < R_CHAM * R_CHAM) { trong = d - 10; chan = b.id; break; }   // dừng cách xe trước chừng 8 mm
         }
         if (chan) break;
       }
@@ -372,6 +377,17 @@
       }
       var v_muc_tieu = trong > 0 ? Math.sqrt(2 * 200 * trong) : 0;
       if (v_muc_tieu > kq.v_cong) v_muc_tieu = kq.v_cong;
+      // Trễ phản ứng của người lái: xe đang đứng yên trong hàng chờ chỉ lăn bánh sau khi đã thấy
+      // đi được (đèn xanh, hoặc xe trước đã rời ra hơn 6 mm) đủ lâu. Nhờ vậy hàng xe khởi hành
+      // lần lượt từ đầu hàng về cuối hàng như ngoài đường, không đồng loạt. Xe đã qua vạch dừng
+      // thì không tính trễ nữa, để xe thoát khỏi lòng ngã tư nhanh như cũ.
+      if (a.da_qua) a.t_san_sang = -1;
+      else if (a.v < 1) {
+        if (trong > 6) {
+          if (a.t_san_sang < 0) a.t_san_sang = this.t;
+          if (this.t - a.t_san_sang < this.cai.tre_phan_ung * a.he_so_pu) v_muc_tieu = 0;
+        } else { a.t_san_sang = -1; v_muc_tieu = 0; }
+      } else a.t_san_sang = -1;
       var v = a.v;
       if (v_muc_tieu >= v) v = Math.min(v + 140 * giay, v_muc_tieu);
       else v = Math.max(v - 500 * giay, v_muc_tieu);

@@ -27,7 +27,7 @@ Chưa kiểm tra, vì cần phần cứng thật: nạp vào board, độ sáng 
 
 Mở `web/index.html` bằng trình duyệt, không cần mạng và không cần board.
 
-- **Bên trái:** chạy, tạm dừng, tốc độ ×1 đến ×16; chế độ cố định hoặc thích ứng; các thông số đèn; lưu lượng và tỉ lệ rẽ trái của từng hướng; nút thả xe cứu thương; nút so sánh hai chế độ.
+- **Bên trái:** chạy, tạm dừng, tốc độ ×1 đến ×16; chế độ cố định hoặc thích ứng; các thông số đèn; lưu lượng và tỉ lệ rẽ trái của từng hướng; trễ phản ứng của người lái; nút thả xe cứu thương; nút so sánh hai chế độ.
 - **Giữa:** sa bàn vẽ từ đúng tệp decal Lần 08. Hai cột hai bên cho biết tổ hợp đang xanh, thời gian còn lại, kế hoạch chu kì, số xe đã qua và thời gian chờ.
 - **Phía dưới:** 4 ô camera. Khung đứt là ROI, vùng xanh dương là làn ngoài (`s`), vùng hồng là làn trong (`l`), dòng cuối là bản tin JSON gửi về trung tâm.
 
@@ -41,20 +41,29 @@ node cong_cu/dong_goi.js
 
 Lệnh này tạo `Mo_phong_sa_ban.html` ở thư mục gốc.
 
+### Xe trong mô phỏng chạy thế nào
+
+- Xe chạy 120 mm/s, giảm tốc khi vào cua, giữ khoảng cách với xe trước và xếp hàng cách nhau 76 mm (vùng chờ chứa đúng 4 xe mỗi làn).
+- **Trễ phản ứng của người lái:** xe đang đứng trong hàng chờ chỉ lăn bánh sau khi đã thấy đi được (đèn xanh, hoặc xe trước đã rời ra) một khoảng bằng mức trễ chung nhân với hệ số riêng của từng người lái, từ 0,7 đến 1,3. Mức chung mặc định 1 s, chỉnh được trên web; đặt 0 là không trễ. Xe đã qua vạch dừng thì không tính trễ nữa.
+- Với mức 1 s, hàng 4 xe xả như sau: xe đầu qua vạch dừng 1,4 s sau khi đèn xanh, mỗi xe sau cách xe trước khoảng 2,1 s (không trễ thì 1,2 s). Con số 2 s mỗi xe mỗi làn cũng là mức thường gặp ngoài đường.
+- Gặp đèn vàng: xe dừng nếu kịp, không kịp thì đi tiếp. Xe rẽ phải đi làn riêng, nhường xe trên làn mà nó nhập vào.
+
 ### Kết quả mô phỏng
 
 Thời gian chờ trung bình trước vạch dừng (giây), 60 phút mô phỏng, trung bình 3 lần chạy, thông số mặc định (lấy từ `node kiem_thu/thu_mo_phong.js`):
 
 | Kiểu dòng xe | Cố định | Thích ứng, không cắt sớm | Thích ứng, cắt sớm 5 s | So với cố định |
 |---|---|---|---|---|
-| Đều, vừa phải (6 xe/phút mỗi hướng) | 50,2 | 50,4 | 23,3 | −54 % |
-| Dọc đông, ngang vắng | 106,5 | 31,6 | 14,5 | −86 % |
-| Chỉ Hướng 1 có xe | 138,6 | 7,3 | 2,2 | −98 % |
-| Giờ cao điểm (12 xe/phút mỗi hướng) | 495,6 | 148,0 | 122,5 | −75 % |
-| Ít rẽ trái (5 %) | 34,8 | 54,7 | 31,4 | −10 % |
-| Vắng (1,5 xe/phút mỗi hướng) | 32,3 | 24,1 | 9,4 | −71 % |
+| Đều, vừa phải (6 xe/phút mỗi hướng) | 58,9 | 52,2 | 32,5 | −45 % |
+| Dọc đông, ngang vắng | 176,8 | 34,5 | 19,4 | −89 % |
+| Chỉ Hướng 1 có xe | 413,0 | 8,4 | 2,5 | −99 % |
+| Giờ cao điểm (12 xe/phút mỗi hướng) | 674,3 | 296,3 | 277,9 | −59 % |
+| Ít rẽ trái (5 %) | 38,7 | 66,5 | 48,2 | +24 % |
+| Vắng (1,5 xe/phút mỗi hướng) | 33,4 | 25,1 | 11,2 | −66 % |
 
-Đây là số của mô phỏng, chưa phải số đo trên sa bàn thật. Cột cuối so chế độ thích ứng có cắt sớm (mặc định) với chế độ cố định. Không cắt sớm thì chế độ thích ứng thua ở kiểu "ít rẽ trái": camera không biết xe ở làn trong sẽ đi thẳng hay rẽ trái, nên vẫn dành đủ thời gian cho làn trong; cắt sớm thu lại phần thời gian thừa đó.
+Đây là số của mô phỏng với trễ phản ứng 1 s, chưa phải số đo trên sa bàn thật. Cột cuối so chế độ thích ứng có cắt sớm (mặc định) với chế độ cố định.
+
+Chế độ thích ứng vẫn thua ở kiểu "ít rẽ trái". Camera không biết xe ở làn trong sẽ đi thẳng hay rẽ trái, nên bộ quyết định mở riêng từng hướng; còn chế độ cố định cho hai hướng đối diện đi thẳng cùng lúc, lợi hơn khi gần như không ai rẽ trái. Cắt sớm thu lại được một phần thời gian thừa (66,5 s xuống 48,2 s) nhưng chưa đủ. Đây là chỗ để cải tiến ở bộ quyết định mức 2.
 
 ## 2. Bộ quyết định đèn
 
