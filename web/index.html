@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sa bàn đèn giao thông</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Bố cục: bảng thông số 1/4 bên trái; bên phải là sa bàn (hai cột số liệu kẹp hai bên), dưới cùng là 4 ô camera. */
+:root {
+  --nen: #e6eae3;          /* nền trang: xám ngả xanh cỏ */
+  --mat: #f6f8f3;          /* mặt bảng */
+  --lom: #dde2d9;          /* ô lõm, rãnh thanh trượt */
+  --muc: #1c221e;          /* chữ chính */
+  --muc-nhat: #58635b;     /* chữ phụ */
+  --vien: #c5ccc1;
+  --nhan: #1b5fae;         /* xanh biển chỉ dẫn */
+  --nhan-chu: #ffffff;
+  --den-do: #d5372c;
+  --den-vang: #c98a00;
+  --den-xanh: #17874a;
+  --chu-tieu-de: "Barlow Semi Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --chu-than: "Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --chu-so: "JetBrains Mono", ui-monospace, Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --nen: #121517; --mat: #1b1f22; --lom: #262b2f; --muc: #e7ebe5; --muc-nhat: #98a39b; --vien: #333a3f;
+    --nhan: #74aef2; --nhan-chu: #0c1620; --den-do: #f0584c; --den-vang: #f0b429; --den-xanh: #3fc47a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --nen: #121517; --mat: #1b1f22; --lom: #262b2f; --muc: #e7ebe5; --muc-nhat: #98a39b; --vien: #333a3f;
+  --nhan: #74aef2; --nhan-chu: #0c1620; --den-do: #f0584c; --den-vang: #f0b429; --den-xanh: #3fc47a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--nen); color: var(--muc); font: 14px/1.45 var(--chu-than); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--nhan); outline-offset: 2px; }
+
+.ung_dung { height: 100%; display: grid; grid-template-columns: minmax(280px, 25%) minmax(0, 1fr); gap: 16px;
+  padding-inline: 16px; padding-block: 12px; }
+
+/* ---------- Bảng thông số ---------- */
+.bang { min-width: 0; min-height: 0; overflow-y: auto; background: var(--mat); border: 1px solid var(--vien); border-radius: 6px; }
+.bang > header { padding: 14px 16px 12px; border-bottom: 1px solid var(--vien); }
+.bang h1 { margin: 0; font: 700 22px/1.1 var(--chu-tieu-de); letter-spacing: .01em; text-wrap: balance; }
+.bang header p { margin: 4px 0 0; color: var(--muc-nhat); font-size: 12.5px; }
+.muc { padding: 12px 16px 14px; border-bottom: 1px solid var(--vien); display: grid; gap: 10px; }
+.muc:last-child { border-bottom: 0; }
+.muc h2 { margin: 0; font: 600 12.5px/1 var(--chu-tieu-de); letter-spacing: .09em; text-transform: uppercase; color: var(--muc-nhat); }
+.ghi_chu { margin: 0; font-size: 12px; color: var(--muc-nhat); }
+
+.hang_nut { display: flex; flex-wrap: wrap; gap: 6px; }
+.nut { border: 1px solid var(--vien); background: var(--mat); border-radius: 4px; padding: 6px 10px; cursor: pointer; font-weight: 500; }
+.nut:hover { border-color: var(--nhan); }
+.nut.chinh { background: var(--nhan); border-color: var(--nhan); color: var(--nhan-chu); }
+.nut.nho { padding: 3px 8px; font-size: 12px; }
+.nut.canh_bao { border-color: var(--den-do); color: var(--den-do); }
+
+.chon { display: flex; border: 1px solid var(--vien); border-radius: 4px; overflow: hidden; }
+.chon label { flex: 1; text-align: center; cursor: pointer; padding: 6px 4px; font-weight: 500; border-left: 1px solid var(--vien); }
+.chon label:first-of-type { border-left: 0; }
+.chon input { position: absolute; opacity: 0; pointer-events: none; }
+.chon input:checked + label { background: var(--nhan); color: var(--nhan-chu); }
+.chon input:focus-visible + label { outline: 2px solid var(--nhan); outline-offset: -2px; }
+
+.truot { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; row-gap: 1px; align-items: baseline; }
+.truot label { min-width: 0; }
+.truot output { font: 600 12.5px var(--chu-so); font-variant-numeric: tabular-nums; color: var(--muc); }
+.truot input[type=range] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--nhan); }
+
+.huong { display: grid; gap: 6px; padding: 8px 10px; background: var(--lom); border-radius: 4px; }
+.huong_dau { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.huong_dau strong { font: 600 15px var(--chu-tieu-de); }
+.huong_dem { font: 12px var(--chu-so); color: var(--muc-nhat); font-variant-numeric: tabular-nums; }
+.kiem { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.kiem input { accent-color: var(--nhan); }
+
+/* ---------- Phần chính ---------- */
+.chinh_dien { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; }
+.san { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: start; }
+.san canvas#sa_ban { display: block; border-radius: 4px; background: #3b3e44; max-width: 100%; }
+.cot { min-width: 0; width: 100%; max-width: 320px; display: grid; gap: 10px; align-content: start; max-height: 100%; overflow-y: auto; }
+#cot_trai { justify-self: end; }
+#cot_phai { justify-self: start; }
+.the { background: var(--mat); border: 1px solid var(--vien); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+.the h2 { margin: 0 0 6px; font: 600 12px/1 var(--chu-tieu-de); letter-spacing: .09em; text-transform: uppercase; color: var(--muc-nhat); }
+
+.dang_chay { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; }
+.dang_chay canvas { width: 92px; height: 92px; }
+.dem_nguoc { font: 700 34px/1 var(--chu-tieu-de); font-variant-numeric: tabular-nums; }
+.dem_nguoc small { font-size: 15px; font-weight: 600; color: var(--muc-nhat); }
+.pha_ten { font-weight: 600; overflow-wrap: anywhere; }
+.pha_mau { display: inline-block; font: 600 12px var(--chu-tieu-de); letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 3px; color: #fff; background: var(--muc-nhat); }
+.pha_mau[data-mau="xanh"] { background: var(--den-xanh); }
+.pha_mau[data-mau="vang"] { background: var(--den-vang); }
+.pha_mau[data-mau="do"] { background: var(--den-do); }
+.pha_mau[data-mau="uu_tien"] { background: var(--nhan); color: var(--nhan-chu); }
+
+ol.ke_hoach { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; counter-reset: buoc; }
+ol.ke_hoach li { counter-increment: buoc; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 6px; align-items: baseline;
+  padding: 3px 6px; border-radius: 3px; font-size: 12.5px; }
+ol.ke_hoach li::before { content: counter(buoc); font: 600 12px var(--chu-so); color: var(--muc-nhat); }
+ol.ke_hoach li span { overflow-wrap: anywhere; }
+ol.ke_hoach li b { font: 600 12px var(--chu-so); font-variant-numeric: tabular-nums; white-space: nowrap; }
+ol.ke_hoach li.hien_tai { background: var(--den-xanh); color: #fff; }
+ol.ke_hoach li.hien_tai::before { color: #fff; }
+.tong { margin: 6px 0 0; font-size: 12px; color: var(--muc-nhat); }
+
+table.so_lieu { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.so_lieu th { text-align: right; font: 600 11.5px var(--chu-tieu-de); letter-spacing: .03em; text-transform: uppercase; color: var(--muc-nhat); padding: 2px 0 4px 6px; }
+table.so_lieu th, table.so_lieu td { white-space: nowrap; }
+table.so_lieu th:first-child, table.so_lieu td:first-child { text-align: left; padding-left: 0; }
+table.so_lieu td { text-align: right; padding: 3px 0 3px 6px; border-top: 1px solid var(--vien); font: 12.5px var(--chu-so); font-variant-numeric: tabular-nums; }
+table.so_lieu td:first-child { font: 500 12.5px var(--chu-than); }
+table.so_lieu tr.dang_dung td:first-child { font-weight: 600; color: var(--nhan); }
+.dong_ho { font: 600 20px var(--chu-so); font-variant-numeric: tabular-nums; }
+.ket_luan { margin: 6px 0 0; font-size: 12.5px; }
+
+ul.nhat_ky { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12px; }
+ul.nhat_ky li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; }
+ul.nhat_ky time { font: 11.5px var(--chu-so); color: var(--muc-nhat); }
+ul.nhat_ky span { overflow-wrap: anywhere; }
+
+/* ---------- 4 ô camera ---------- */
+.day_camera { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.camera { min-width: 0; display: grid; justify-items: center; }
+.camera canvas { display: block; background: #2a2d31; border-radius: 4px; max-width: 100%; }
+
+/* ---------- Màn hình hẹp: sa bàn ở trên, số liệu xuống dưới ---------- */
+.ung_dung.hep_san .san { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.ung_dung.hep_san .san canvas#sa_ban { order: -1; }
+.ung_dung.hep_san .cot { max-width: none; max-height: none; overflow: visible; justify-self: stretch; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+@media (max-width: 900px) {
+  html, body { height: auto; }
+  .ung_dung { height: auto; display: flex; flex-direction: column; }
+  .bang { order: 2; overflow: visible; }
+  .chinh_dien { display: flex; flex-direction: column; }
+  .day_camera { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="ung_dung" id="ung_dung">
+
+  <aside class="bang" aria-label="Thông số">
+    <header>
+      <h1>Sa bàn đèn giao thông thông minh</h1>
+      <p>NCKHKT 2026 · mô phỏng ngã tư Lần 08, tấm 1000 × 1000 mm</p>
+    </header>
+
+    <section class="muc">
+      <h2>Mô phỏng</h2>
+      <div class="hang_nut">
+        <button class="nut chinh" id="nut_chay" type="button">Tạm dừng</button>
+        <button class="nut" id="nut_lai" type="button">Chạy lại từ đầu</button>
+      </div>
+      <div class="chon" role="radiogroup" aria-label="Tốc độ mô phỏng" id="chon_toc_do"></div>
+    </section>
+
+    <section class="muc">
+      <h2>Chế độ đèn</h2>
+      <div class="chon" role="radiogroup" aria-label="Chế độ đèn">
+        <input type="radio" name="che_do" id="che_do_0" value="0"><label for="che_do_0">Cố định</label>
+        <input type="radio" name="che_do" id="che_do_1" value="1" checked><label for="che_do_1">Thích ứng</label>
+      </div>
+      <p class="ghi_chu">Đổi chế độ hay thông số đèn có hiệu lực từ chu kì sau; chu kì đang chạy giữ nguyên.</p>
+    </section>
+
+    <section class="muc" id="muc_den">
+      <h2>Thông số đèn</h2>
+    </section>
+
+    <section class="muc" id="muc_xe">
+      <h2>Xe ở các hướng</h2>
+      <div class="hang_nut" id="mau_dong_xe" aria-label="Kiểu dòng xe có sẵn"></div>
+    </section>
+
+    <section class="muc">
+      <h2>So sánh hai chế độ</h2>
+      <p class="ghi_chu">Chạy nhanh 30 phút mô phỏng cho mỗi chế độ, cùng một dòng xe và thông số đang đặt.</p>
+      <div class="hang_nut"><button class="nut" id="nut_so_sanh" type="button">Chạy so sánh</button></div>
+      <div id="ket_qua_so_sanh" aria-live="polite"></div>
+    </section>
+
+    <section class="muc">
+      <h2>Hiển thị</h2>
+      <label class="kiem" for="hien_vung"><input type="checkbox" id="hien_vung"> Vẽ vùng đếm của camera lên sa bàn</label>
+    </section>
+  </aside>
+
+  <main class="chinh_dien">
+    <div class="san" id="san">
+      <div class="cot" id="cot_trai">
+        <section class="the">
+          <h2>Đang chạy</h2>
+          <div class="dang_chay">
+            <canvas id="so_do_pha" width="184" height="184" aria-label="Sơ đồ 8 nhóm tín hiệu"></canvas>
+            <div>
+              <div class="dem_nguoc" id="dem_nguoc">–</div>
+              <span class="pha_mau" id="pha_mau">–</span>
+            </div>
+          </div>
+          <div class="pha_ten" id="pha_ten" style="margin-top:6px">–</div>
+        </section>
+        <section class="the">
+          <h2 id="tieu_de_ke_hoach">Kế hoạch chu kì</h2>
+          <ol class="ke_hoach" id="ke_hoach"></ol>
+          <p class="tong" id="tong_chu_ki"></p>
+        </section>
+        <section class="the">
+          <h2>Chu kì sau, nếu chốt ngay lúc này</h2>
+          <ol class="ke_hoach" id="ke_hoach_sau"></ol>
+          <p class="tong" id="tong_chu_ki_sau"></p>
+        </section>
+      </div>
+
+      <canvas id="sa_ban" width="800" height="800" aria-label="Sa bàn nhìn từ trên xuống"></canvas>
+
+      <div class="cot" id="cot_phai">
+        <section class="the">
+          <h2>Thời gian mô phỏng</h2>
+          <div class="dong_ho" id="dong_ho">00:00</div>
+        </section>
+        <section class="the">
+          <h2>Xe qua đèn</h2>
+          <table class="so_lieu">
+            <thead><tr><th>Chờ (giây)</th><th>Xe</th><th>TB</th><th>Lâu nhất</th></tr></thead>
+            <tbody>
+              <tr id="hang_tk_0"><td>Cố định</td><td>0</td><td>–</td><td>–</td></tr>
+              <tr id="hang_tk_1"><td>Thích ứng</td><td>0</td><td>–</td><td>–</td></tr>
+            </tbody>
+          </table>
+          <p class="tong" id="dang_cho"></p>
+        </section>
+        <section class="the">
+          <h2>Nhật ký</h2>
+          <ul class="nhat_ky" id="nhat_ky"></ul>
+        </section>
+      </div>
+    </div>
+
+    <div class="day_camera" id="day_camera"></div>
+  </main>
+</div>
+
+<script src="quyet_dinh.js"></script>
+<script src="dieu_khien.js"></script>
+<script src="mo_phong.js"></script>
+<script src="sa_ban_svg.js"></script>
+<script src="giao_dien.js"></script>
+</body>
+</html>

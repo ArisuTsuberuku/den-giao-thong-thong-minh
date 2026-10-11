@@ -1,0 +1,7 @@
+Mo_phong_sa_ban.html
+*.bin
+*.elf
+build/
+.vscode/
+.DS_Store
+Thumbs.db

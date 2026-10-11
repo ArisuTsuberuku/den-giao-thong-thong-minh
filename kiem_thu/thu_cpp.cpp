@@ -1,0 +1,55 @@
+// thu_cpp.cpp — Chạy bản C++ của bộ quyết định trên máy tính.
+// Đọc lệnh từ stdin, in kết quả ra stdout; so_khop.js so kết quả này với bản JavaScript.
+//   TS <13 số>                 đặt tham số
+//   KH s1 l1 s2 l2 s3 l3 s4 l4 h1 h2 h3 h4   lập kế hoạch, in ra
+//   BD t                       khởi động bộ điều khiển
+//   D id s l emg t giu         nhận một bản tin đếm xe
+//   T t                        cập nhật tới thời điểm t, in trạng thái
+#include <cstdio>
+#include <cstring>
+#include "../firmware/trung_tam/dieu_khien.h"
+
+int main() {
+  ThamSo ts;
+  memset(&ts, 0, sizeof(ts));
+  DieuKhien dk(&ts);
+  char lenh[8];
+  while (scanf("%7s", lenh) == 1) {
+    if (!strcmp(lenh, "TS")) {
+      unsigned v[13];
+      for (int i = 0; i < 13; i++) if (scanf("%u", &v[i]) != 1) return 1;
+      ts.che_do = (uint8_t)v[0]; ts.t_min = v[1]; ts.t_max = v[2]; ts.cong_them = v[3];
+      ts.xe_quy_doi = v[4]; ts.t_vang = v[5]; ts.t_do = v[6]; ts.cd_thang = v[7]; ts.cd_trai = v[8];
+      ts.mat_tin_hieu = v[9]; ts.ut_xanh_an_toan = v[10]; ts.ut_giu = v[11]; ts.ut_toi_da = v[12];
+    } else if (!strcmp(lenh, "KH")) {
+      unsigned v[12];
+      for (int i = 0; i < 12; i++) if (scanf("%u", &v[i]) != 1) return 1;
+      uint8_t s[5] = {0}, l[5] = {0};
+      bool hl[5] = {false};
+      for (int h = 1; h <= 4; h++) { s[h] = (uint8_t)v[(h - 1) * 2]; l[h] = (uint8_t)v[(h - 1) * 2 + 1]; hl[h] = v[7 + h] != 0; }
+      KeHoach kh = lapKeHoach(ts, s, l, hl);
+      printf("KH %u", (unsigned)kh.so_buoc);
+      for (int i = 0; i < kh.so_buoc; i++) printf(" %u:%u", (unsigned)kh.buoc[i].mat_na, (unsigned)kh.buoc[i].xanh);
+      printf("\n");
+    } else if (!strcmp(lenh, "BD")) {
+      unsigned t;
+      if (scanf("%u", &t) != 1) return 1;
+      dk = DieuKhien(&ts);   // bộ điều khiển mới cho mỗi kịch bản
+      dk.khoiDong(t);
+    } else if (!strcmp(lenh, "D")) {
+      int id, s, l, emg, giu;
+      unsigned t;
+      if (scanf("%d %d %d %d %u %d", &id, &s, &l, &emg, &t, &giu) != 6) return 1;
+      dk.nhanDem(id, s, l, emg, t, giu != 0);
+    } else if (!strcmp(lenh, "T")) {
+      unsigned t;
+      if (scanf("%u", &t) != 1) return 1;
+      dk.capNhat(t);
+      printf("T %u %u %u %u %d %u %u %d %d", t, (unsigned)dk.pha, (unsigned)dk.xanh, (unsigned)dk.vang,
+             dk.i_buoc, (unsigned)dk.chu_ki, (unsigned)dk.ut_huong, dk.loi ? 1 : 0, (int)dk.conLai(t));
+      for (int g = 0; g < 8; g++) printf(" %u", (unsigned)dk.mauNhom(g, t));
+      printf("\n");
+    }
+  }
+  return 0;
+}
