@@ -1,7 +1,7 @@
 // dieu_khien.js — Máy trạng thái chạy kế hoạch đèn: xanh → vàng → đỏ toàn phần → bước kế.
 // Bản C++ tương ứng: firmware/trung_tam/dieu_khien.h (hai bản phải cho cùng vết đèn).
-// Nguyên tắc: kế hoạch chỉ đổi ở ranh giới chu kì; ngoại lệ duy nhất là xe ưu tiên,
-// và khi đó vẫn đi đủ vàng rồi đỏ toàn phần.
+// Nguyên tắc: tổ hợp và thứ tự các bước chốt ở đầu chu kì. Hai ngoại lệ, đều vẫn đi đủ vàng
+// rồi đỏ toàn phần: xe ưu tiên, và cắt xanh sớm khi tổ hợp đang xanh hết xe (chế độ thích ứng).
 (function (goc, tao) {
   if (typeof module === 'object' && module.exports) module.exports = tao(require('./quyet_dinh.js'));
   else goc.DieuKhien = tao(goc.QuyetDinh);
@@ -26,8 +26,11 @@
     this.t_het = 0;               // thời điểm hết trạng thái hiện tại
     this.t_xanh_tu = 0;           // thời điểm bước hiện tại bắt đầu xanh
     this.kh = [];                 // kế hoạch của chu kì đang chạy
+    this.che_do_kh = QD.CHE_DO_CO_DINH;   // chế độ lúc chốt kế hoạch đó
     this.i_buoc = -1;
     this.chu_ki = 0;
+    this.dang_trong = false;      // tổ hợp đang xanh hiện không còn xe
+    this.t_trong_tu = 0;          // ... kể từ lúc này
     this.ut_huong = 0;            // đang ưu tiên hướng nào (0: không)
     this.ut_bat_dau = 0;
     this.ut_thay = 0;             // lần cuối còn thấy xe ưu tiên
@@ -39,6 +42,7 @@
     this.pha = PHA_KHOI_DONG;     // bật máy: đỏ toàn phần một lúc rồi mới chạy
     this.xanh = 0; this.vang = 0; this.loi = false;
     this.kh = []; this.i_buoc = -1; this.chu_ki = 0; this.ut_huong = 0;
+    this.dang_trong = false;
     this.t_het = t + this.ts.t_do;
   };
 
@@ -87,6 +91,7 @@
     this.xanh = this.dich; this.vang = 0;
     this.pha = PHA_XANH;
     this.t_xanh_tu = t;
+    this.dang_trong = false;
     this.t_het = t + this.dich_xanh;
     if (this.ut_huong) this.ut_thay = t;   // xanh ưu tiên luôn giữ ít nhất ut_giu
     this.baoSuKien('buoc', null);
@@ -109,10 +114,53 @@
       s[h] = this.dem[h].s; l[h] = this.dem[h].l; hop_le[h] = this.conHan(h, t);
     }
     this.kh = QD.lapKeHoach(this.ts, s, l, hop_le);
+    this.che_do_kh = this.ts.che_do;
     this.chu_ki++;
     this.i_buoc = 0;
     this.baoSuKien('chu_ki', null);
     this.chuyenSang(this.kh[0].mat_na, this.kh[0].xanh, t);
+  };
+
+  // Số xe mà tổ hợp m phục vụ: nhóm thẳng phục vụ cả hai làn, nhóm trái chỉ phục vụ làn trong.
+  // Trả về -1 nếu camera của một hướng trong tổ hợp mất tín hiệu (không biết thì không cắt, không bỏ).
+  DieuKhien.prototype.nhuCau = function (m, t) {
+    var n = 0;
+    for (var h = 1; h <= 4; h++) {
+      var thang = (m & QD.bitThang(h)) !== 0, trai = (m & QD.bitTrai(h)) !== 0;
+      if (!thang && !trai) continue;
+      if (!this.conHan(h, t)) return -1;
+      n += thang ? this.dem[h].s + this.dem[h].l : this.dem[h].l;
+    }
+    return n;
+  };
+
+  // Có xe đang chờ mà tổ hợp m không phục vụ không? Camera mất tín hiệu thì coi như có.
+  DieuKhien.prototype.coXeChoNgoai = function (m, t) {
+    for (var h = 1; h <= 4; h++) {
+      if (m & QD.bitThang(h)) continue;
+      if (!this.conHan(h, t)) return true;
+      if (m & QD.bitTrai(h)) { if (this.dem[h].s > 0) return true; }
+      else if (this.dem[h].s + this.dem[h].l > 0) return true;
+    }
+    return false;
+  };
+
+  DieuKhien.prototype.duocCatSom = function () {
+    return this.che_do_kh === QD.CHE_DO_THICH_UNG && this.ts.cat_som > 0;
+  };
+
+  // Sang bước kế của kế hoạch. Khi bật cắt sớm, bước nào không còn xe thì bỏ qua.
+  DieuKhien.prototype.buocKe = function (t) {
+    var i = this.i_buoc + 1;
+    if (this.duocCatSom()) {
+      while (i < this.kh.length && this.nhuCau(this.kh[i].mat_na, t) === 0) i++;
+    }
+    if (i < this.kh.length) {
+      this.i_buoc = i;
+      this.chuyenSang(this.kh[i].mat_na, this.kh[i].xanh, t);
+    } else {
+      this.chuKiMoi(t);
+    }
   };
 
   DieuKhien.prototype.motBuoc = function (t) {
@@ -142,13 +190,19 @@
             return true;
           }
         }
-        if (t < this.t_het) return false;
-        if (this.i_buoc + 1 < this.kh.length) {
-          this.i_buoc++;
-          this.chuyenSang(this.kh[this.i_buoc].mat_na, this.kh[this.i_buoc].xanh, this.t_het);
-        } else {
-          this.chuKiMoi(this.t_het);
+        if (this.duocCatSom()) {
+          // Cắt xanh sớm: tổ hợp đang xanh không còn xe suốt cat_som, và có xe khác đang chờ
+          if (this.nhuCau(this.xanh, t) === 0) {
+            if (!this.dang_trong) { this.dang_trong = true; this.t_trong_tu = t; }
+          } else this.dang_trong = false;
+          if (this.dang_trong && t - this.t_trong_tu >= this.ts.cat_som && this.coXeChoNgoai(this.xanh, t)) {
+            this.baoSuKien('cat_som', this.xanh);
+            this.buocKe(t);
+            return true;
+          }
         }
+        if (t < this.t_het) return false;
+        this.buocKe(this.t_het);
         return true;
       case PHA_VANG:
         if (t < this.t_het) return false;

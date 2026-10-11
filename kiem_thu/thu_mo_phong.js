@@ -63,16 +63,19 @@ for (const [ten, cai] of Object.entries(KIEU)) {
   }
 }
 
-// ---------- 2) Bảng so sánh hai chế độ (60 phút mô phỏng, 3 hạt giống) ----------
+// ---------- 2) Bảng so sánh (60 phút mô phỏng, 3 hạt giống) ----------
+// Ba cột: cố định; thích ứng không cắt xanh sớm; thích ứng có cắt xanh sớm 5 s (mặc định).
 console.log('\nSo sánh thời gian chờ trung bình (giây), 60 phút mô phỏng, trung bình 3 lần chạy:');
-console.log('Kiểu dòng xe'.padEnd(24) + 'Cố định'.padStart(9) + 'Thích ứng'.padStart(11) + '   Thay đổi');
+console.log('Kiểu dòng xe'.padEnd(24) + 'Cố định'.padStart(9) + 'TƯ không cắt'.padStart(14) + 'TƯ cắt sớm 5 s'.padStart(16) + '   So với cố định');
 for (const [ten, cai] of Object.entries(KIEU)) {
-  let cd = 0, tu = 0;
+  let cd = 0, tu0 = 0, tu = 0;
   for (const hat of [1, 2, 3]) {
     const kq = MoPhong.soSanh(cai, QD.thamSoMacDinh(), 60, hat);
-    cd += kq[0].cho_tb / 3; tu += kq[1].cho_tb / 3;
+    const ts0 = QD.thamSoMacDinh(); ts0.cat_som = 0;
+    const kq0 = MoPhong.soSanh(cai, ts0, 60, hat);
+    cd += kq[0].cho_tb / 3; tu += kq[1].cho_tb / 3; tu0 += kq0[1].cho_tb / 3;
   }
-  console.log(ten.padEnd(24) + cd.toFixed(1).padStart(9) + tu.toFixed(1).padStart(11) + '   ' + ((tu - cd) / cd * 100).toFixed(0).padStart(4) + ' %');
+  console.log(ten.padEnd(24) + cd.toFixed(1).padStart(9) + tu0.toFixed(1).padStart(14) + tu.toFixed(1).padStart(16) + '   ' + ((tu - cd) / cd * 100).toFixed(0).padStart(4) + ' %');
 }
 console.log(so_loi === 0 ? '\nĐẠT: không có lỗi.' : '\nKHÔNG ĐẠT: ' + so_loi + ' lỗi.');
 process.exit(so_loi === 0 ? 0 : 1);

@@ -31,7 +31,8 @@
       mat_tin_hieu: 3000,      // quá lâu không có tin thì coi camera mất tín hiệu
       ut_xanh_an_toan: 5000,   // bước đang chạy phải xanh ít nhất chừng này mới bị cắt để ưu tiên
       ut_giu: 5000,            // giữ xanh thêm sau khi không còn thấy xe ưu tiên
-      ut_toi_da: 60000         // ưu tiên tự hủy sau thời gian này
+      ut_toi_da: 60000,        // ưu tiên tự hủy sau thời gian này
+      cat_som: 5000            // chế độ thích ứng: tổ hợp đang xanh không còn xe quá lâu thế này thì cắt xanh sớm (0: tắt)
     };
   }
 

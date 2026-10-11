@@ -18,6 +18,7 @@
     { id: 't_max', ten: 'Xanh dài nhất (Tmax)', min: 30, max: 120, buoc: 5, dv: ' s', he: 1000 },
     { id: 'cong_them', ten: 'Cộng thêm cho mỗi 10 xe thật', min: 0, max: 15, buoc: 1, dv: ' s', he: 1000 },
     { id: 'xe_quy_doi', ten: '1 xe mô hình bằng', min: 1, max: 20, buoc: 1, dv: ' xe thật', he: 1 },
+    { id: 'cat_som', ten: 'Cắt xanh sớm khi hết xe quá', min: 0, max: 15, buoc: 1, dv: ' s', he: 1000, khong: 'tắt' },
     { id: 't_vang', ten: 'Vàng', min: 2, max: 6, buoc: 1, dv: ' s', he: 1000 },
     { id: 't_do', ten: 'Đỏ toàn phần', min: 0, max: 5, buoc: 1, dv: ' s', he: 1000 },
     { id: 'cd_thang', ten: 'Cố định: xanh đi thẳng', min: 10, max: 60, buoc: 5, dv: ' s', he: 1000 },
@@ -59,7 +60,7 @@
       cap_nhat_truot.push(taoTruot(muc_den, 'ts_' + d.id, d.ten, d.min, d.max, d.buoc,
         function () { return ts[d.id] / d.he; },
         function (v) { ts[d.id] = Math.round(v * d.he); capNhatGhiChuDen(); },
-        function (v) { return soVn(v) + d.dv; }));
+        function (v) { return v === 0 && d.khong ? d.khong : soVn(v) + d.dv; }));
     });
     var gc = document.createElement('p');
     gc.className = 'ghi_chu'; gc.id = 'ghi_chu_den';
@@ -120,7 +121,8 @@
   function capNhatGhiChuDen() {
     var moi_xe = ts.cong_them * ts.xe_quy_doi / 10 / 1000;
     $('ghi_chu_den').textContent = 'Chế độ thích ứng: xanh = ' + soVn(ts.t_min / 1000) + ' s + ' + soVn(moi_xe, 1) +
-      ' s cho mỗi xe mô hình ở làn đông nhất, không quá ' + soVn(Math.max(ts.t_max, ts.t_min) / 1000) + ' s.';
+      ' s cho mỗi xe mô hình ở làn đông nhất, không quá ' + soVn(Math.max(ts.t_max, ts.t_min) / 1000) + ' s.' +
+      (ts.cat_som > 0 ? ' Tổ hợp đang xanh hết xe quá ' + soVn(ts.cat_som / 1000) + ' s mà hướng khác có xe chờ thì chuyển vàng ngay; bước kế không còn xe thì bỏ qua.' : '');
   }
   function dongBoNut() {
     $('che_do_' + (ts.che_do === QD.CHE_DO_CO_DINH ? 0 : 1)).checked = true;
@@ -164,6 +166,7 @@
   }
   mp.khiSuKien = function (loai, dl) {
     if (loai === 'chu_ki') ghi('Chu kì ' + mp.dk.chu_ki + ': ' + tomTatKeHoach(mp.dk.kh) + '.');
+    else if (loai === 'cat_som') ghi('Hết xe ở ' + QD.tenToHop(dl) + ' quá ' + soVn(ts.cat_som / 1000) + ' s: cắt xanh sớm.');
     else if (loai === 'uu_tien') ghi('Camera Hướng ' + dl + ' thấy xe ưu tiên: kết thúc bước đang chạy, mở riêng Hướng ' + dl + '.');
     else if (loai === 'het_uu_tien') ghi('Hết ưu tiên Hướng ' + dl + ', lập kế hoạch chu kì mới.');
     else if (loai === 'cuu_thuong_qua') ghi('Xe cứu thương Hướng ' + dl.h + ' qua vạch dừng sau ' + soVn(dl.ms / 1000, 1) + ' s.');

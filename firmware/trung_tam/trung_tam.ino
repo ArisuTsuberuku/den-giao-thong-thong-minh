@@ -17,7 +17,7 @@
 
 ThamSo ts = {
   CHE_DO_BAN_DAU, T_MIN, T_MAX, CONG_THEM, XE_QUY_DOI, T_VANG, T_DO_TOAN_PHAN,
-  CD_THANG, CD_TRAI, MAT_TIN_HIEU, UT_XANH_AN_TOAN, UT_GIU, UT_TOI_DA
+  CD_THANG, CD_TRAI, MAT_TIN_HIEU, UT_XANH_AN_TOAN, UT_GIU, UT_TOI_DA, CAT_SOM
 };
 DieuKhien dk(&ts);
 
@@ -83,6 +83,11 @@ void khiSuKien(uint8_t loai, uint8_t dl) {
     case SK_HET_UU_TIEN:
       Serial.printf("Hết ưu tiên Hướng %u, lập kế hoạch chu kì mới\n", dl);
       break;
+    case SK_CAT_SOM:
+      Serial.print("Hết xe ở ");
+      inToHop(dl);
+      Serial.printf(" quá %lu s: cắt xanh sớm\n", (unsigned long)(ts.cat_som / 1000));
+      break;
     case SK_LOI:
       Serial.println("LỖI AN TOÀN: tổ hợp đèn xung đột. Tất cả nháy vàng. Bấm RST để chạy lại.");
       break;
@@ -91,8 +96,8 @@ void khiSuKien(uint8_t loai, uint8_t dl) {
 
 void inTrangThai() {
   inThoiGian();
-  Serial.printf("Chế độ %s, tua x%lu, chu kì %lu, bước %d/%u. ", ts.che_do == CHE_DO_CO_DINH ? "cố định" : "thích ứng",
-                (unsigned long)he_so_tua, (unsigned long)dk.chu_ki, dk.i_buoc + 1, dk.kh.so_buoc);
+  Serial.printf("Chế độ %s, tua x%lu, cắt sớm %lu s, chu kì %lu, bước %d/%u. ", ts.che_do == CHE_DO_CO_DINH ? "cố định" : "thích ứng",
+                (unsigned long)he_so_tua, (unsigned long)(ts.cat_som / 1000), (unsigned long)dk.chu_ki, dk.i_buoc + 1, dk.kh.so_buoc);
   const char *ten_pha[] = {"khởi động", "xanh", "vàng", "đỏ toàn phần"};
   Serial.printf("Đang %s: ", dk.loi ? "LỖI" : ten_pha[dk.pha]);
   inToHop(dk.pha == PHA_VANG ? dk.vang : dk.xanh);
@@ -119,6 +124,7 @@ void inHuongDan() {
   Serial.println("  {\"id\":1,\"s\":3,\"l\":1,\"emg\":0}   giả làm camera Hướng 1: 3 xe làn ngoài, 1 xe làn trong");
   Serial.println("  codinh | thichung              đổi chế độ, có hiệu lực từ chu kì sau");
   Serial.println("  tua 4                          chạy nhanh gấp 4 (1 đến 8)");
+  Serial.println("  catsom 5                       hết xe quá 5 s thì cắt xanh sớm (0 là tắt)");
   Serial.println("  xem                            in trạng thái và tỉ lệ mất gói");
   Serial.println("  xoa                            bỏ các số đếm đã gõ tay");
   Serial.println("  thuday                         lần lượt sáng từng bóng để kiểm tra dây");
@@ -158,6 +164,14 @@ void xuLyLenh(char *dong) {
     he_so_tua = (uint32_t)n;
     ts.mat_tin_hieu = MAT_TIN_HIEU * he_so_tua;      // vẫn là 3 giây thật
     Serial.printf("Tua nhanh x%d.\n", n);
+  }
+  else if (!strncmp(dong, "catsom", 6)) {
+    int n = atoi(dong + 6);
+    if (n < 0) n = 0;
+    if (n > 60) n = 60;
+    ts.cat_som = (uint32_t)n * 1000;
+    if (n) Serial.printf("Cắt xanh sớm khi tổ hợp đang xanh hết xe quá %d s.\n", n);
+    else Serial.println("Tắt cắt xanh sớm.");
   }
   else if (!strcmp(dong, "xem")) inTrangThai();
   else if (!strcmp(dong, "xoa")) {

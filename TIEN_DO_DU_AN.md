@@ -1,6 +1,6 @@
 # Tiến độ dự án: Đèn giao thông thông minh (NCKHKT 2026)
 
-Cập nhật lần cuối: 2026-10-11 (viết xong bản đầu của web mô phỏng và hai firmware; chưa thử trên board thật)
+Cập nhật lần cuối: 2026-10-11 (bản đầu của web mô phỏng và hai firmware, thêm cắt xanh sớm; code ở repo GitHub `ArisuTsuberuku/den-giao-thong-thong-minh`; chưa thử trên board thật)
 
 ## Cách dùng file này
 
@@ -57,7 +57,7 @@ Cách gọi tên thống nhất với sa bàn: Hướng 1 (từ trên xuống) �
 8. Làn rẽ phải cắt góc chạy tự do, không có đèn, camera không đếm.
 9. Đèn điều khiển theo hướng đi, không theo làn: cụm mũi tên thẳng cho mọi xe đi thẳng ở cả hai làn; cụm mũi tên rẽ trái cho xe rẽ trái (chỉ từ làn trong). Decal sa bàn và khung đèn hiện tại đã đúng với cách này, không cần sửa.
 10. Thời gian đèn dùng giá trị thực tế theo báo cáo dự án: Tmin 15 s, Tmax 90 s, cộng 5 s cho mỗi 10 xe chờ.
-11. Kế hoạch đèn chỉ đổi ở ranh giới chu kì. Chu kì đang chạy giữ nguyên tới hết (xanh, vàng, đỏ đủ như đã định); kế hoạch mới được tính trong lúc đó và áp dụng từ chu kì sau. Ngoại lệ duy nhất: xe ưu tiên và lỗi an toàn, và vẫn phải qua vàng rồi đỏ toàn phần.
+11. Kế hoạch đèn chỉ đổi ở ranh giới chu kì. Chu kì đang chạy giữ nguyên tới hết (xanh, vàng, đỏ đủ như đã định); kế hoạch mới được tính trong lúc đó và áp dụng từ chu kì sau. Ngoại lệ: xe ưu tiên, lỗi an toàn và cắt xanh sớm (mục 21); mọi ngoại lệ vẫn phải qua vàng rồi đỏ toàn phần.
 12. Board trung tâm ESP32-S3 N16R8 đảm nhận cả việc quyết định kế hoạch đèn; không cần thêm board.
 13. (Đề xuất, đã cài thành tham số) Quy đổi trên sa bàn: 1 xe mô hình đại diện cho 10 xe thật, hằng số `XE_QUY_DOI`.
 14. (Đề xuất, đã cài thành tham số) Hằng số `HE_SO_TUA_NHANH`, mặc định 1 = thời gian thực; tăng lên khi cần trình diễn nhanh.
@@ -66,6 +66,7 @@ Cách gọi tên thống nhất với sa bàn: Hướng 1 (từ trên xuống) �
 17. (Đề xuất) Bộ quyết định làm theo 3 mức, dùng chung một giao diện: vào là số đếm 8 làn, ra là kế hoạch một chu kì (mục 5.4). Mức 1 đã viết xong.
 19. Web mô phỏng là mô phỏng thuần, chưa nối với board. Sau này nếu nối thì đi qua Firebase Realtime Database.
 20. Camera gửi ESP-NOW kiểu phát chung (địa chỉ FF:FF:FF:FF:FF:FF) trên kênh cố định, nên không cần ghi địa chỉ MAC của board trung tâm vào code.
+21. Cắt xanh sớm ở chế độ thích ứng (thầy yêu cầu 2026-10-11): tổ hợp đang xanh không thấy xe quá 5 s thì chuyển vàng, đỏ rồi cho xanh bước kế, không đợi hết thời gian đã định. Tham số `CAT_SOM`, đặt 0 để tắt. Chi tiết ở mục 5.2.
 18. Sa bàn giữ tấm 1000 × 1000 mm và giữ đường bao; kích thước làn tối ưu theo xe Hot Wheels rộng 40 mm (Lần 06).
 
 ## 4. Giao thức JSON
@@ -125,6 +126,13 @@ Một chu kì thích ứng gồm khối trục dọc rồi khối trục ngang (
 - Hai phương án bằng nhau mà cả hai làn trong đều có xe: chọn "riêng từng hướng". Lí do: làn trong đi chung thẳng và trái, camera không biết xe nào rẽ; nếu thẳng và trái không xanh cùng lúc thì xe đầu làn chặn các xe phía sau. Mô phỏng cho thấy cách này giảm mạnh thời gian chờ khi đông xe.
 - Camera của một hướng mất tín hiệu: trục đó chạy "thẳng cả hai" 30 s rồi "trái cả hai" 15 s.
 
+Cắt xanh sớm trong lúc chu kì đang chạy (mục 21 của phần 3):
+
+- Tổ hợp đang xanh không còn xe suốt `CAT_SOM` (5 s) và có xe đang chờ ở hướng khác: chuyển vàng ngay, sang bước kế. "Không còn xe" tính theo làn mà tổ hợp phục vụ: nhóm thẳng phục vụ cả hai làn, nhóm trái chỉ phục vụ làn trong.
+- Khi sang bước kế (do cắt sớm hay do hết giờ), bước nào không còn xe thì bỏ qua; hết bước thì lập kế hoạch chu kì mới. Thứ tự các bước trong chu kì không đổi, nên không hướng nào bị bỏ đói.
+- Không cắt khi camera của hướng đang xanh mất tín hiệu, hoặc khi không có xe nào chờ ở hướng khác (đèn giữ xanh, xe tới sau không phải dừng). Vì vậy khi cả ngã tư trống, trục dọc giữ xanh thay vì luân phiên.
+- Chế độ cố định không cắt sớm.
+
 Thời gian xanh mỗi bước = Tmin + 5 s × (số xe làn đông nhất của bước × `XE_QUY_DOI` / 10), giới hạn trong [Tmin, Tmax]. Bước đi thẳng tính cả làn trong vì xe làn trong cũng có thể đi thẳng.
 
 Khi chuyển giữa hai tổ hợp, nhóm đèn có mặt ở cả hai thì giữ xanh; chỉ nhóm rời đi mới chuyển vàng rồi đỏ.
@@ -166,6 +174,7 @@ Các ý khác trong báo cáo để dành cho GĐ6: "xả cân bằng" chia th�
 | Chế độ cố định (đối chứng) | đi thẳng 30 s, rẽ trái 15 s, chu kì 110 s | Đề xuất |
 | `HE_SO_TUA_NHANH` | 1 | Đề xuất |
 | Camera mất tín hiệu sau | 3 s không nhận gói → từ chu kì sau hướng đó dùng thời gian cố định | Đề xuất |
+| Cắt xanh sớm `CAT_SOM` | hết xe quá 5 s | Thầy yêu cầu 2026-10-11 |
 | Ưu tiên tự hủy sau | 60 s | Đề xuất |
 | Xanh ít nhất trước khi bị cắt để ưu tiên | 5 s | Đề xuất |
 | Giữ xanh sau khi hết thấy xe ưu tiên | 5 s | Đề xuất |
@@ -265,7 +274,7 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 6. Báo cáo ghi mỗi hướng có "1 làn đi thẳng/rẽ phải, 1 làn rẽ trái" và dùng cảm biến âm thanh; sa bàn thực tế là làn ngoài đi thẳng, làn trong thẳng hoặc rẽ trái, rẽ phải có làn riêng, không có cảm biến âm thanh. Cần sửa báo cáo cho khớp.
 7. Thư mục `Decal sa ban/Khung den` còn tệp cũ `Duong_cat_khung_den_A4.pdf` (Lần 05); dưỡng cắt mới là `Duong_cat_khung_den_A3.pdf`. Có thể xóa tệp A4 cũ (bản lưu vẫn còn trong `Nhật ký thiết kế/Lần 05`).
 8. Thử code trên board thật theo danh sách trong `README.md` của thư mục code: 24 bóng đèn (lệnh `thuday`), chu kì cố định, bản tin gõ qua Serial, camera ở chế độ thu ảnh.
-9. Mô phỏng cho thấy chế độ thích ứng thua chế độ cố định khi rất ít xe rẽ trái (camera không biết xe làn trong đi thẳng hay rẽ), và hệ số 5 s mỗi xe mô hình là dư. Cân nhắc giảm `XE_QUY_DOI` hoặc làm bộ quyết định mức 2.
+9. Mô phỏng: khi chưa có cắt xanh sớm, chế độ thích ứng thua chế độ cố định lúc rất ít xe rẽ trái (camera không biết xe làn trong đi thẳng hay rẽ). Có cắt sớm 5 s thì thích ứng hơn cố định ở cả 6 kiểu dòng xe đã thử. Cần kiểm lại trên sa bàn thật, nhất là việc camera đếm về 0 có đủ ổn định để cắt sớm không.
 
 ## 12. Nhật ký thay đổi
 
@@ -285,3 +294,5 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 | 2026-10-11 | Thầy chốt: tổ hợp pha thay đổi theo lưu lượng; rẽ trái không được đi khi hướng ngược chiều đang chạy (bỏ vàng nhấp nháy); web là mô phỏng thuần, sau này nối board qua Firebase RTDB. Board: ESP32-S3-CAM có đế nạp và ESP32-S3 N16R8 loại 2 cổng USB-C |
 | 2026-10-11 | Viết bản đầu: web mô phỏng (nền là decal Lần 08), firmware trung tâm, firmware camera 3 chế độ (thu ảnh, đếm, giả lập). Bộ quyết định viết hai bản C++ và JavaScript, so khớp nhau trên 760 000 dòng trạng thái. Biên dịch được với lõi esp32 2.0.9 và 3.3.12. Chưa thử trên board thật |
 | 2026-10-11 | Đổi luật 5.2: so thời gian hai phương án; bằng nhau và cả hai làn trong có xe thì chọn riêng từng hướng. Mô phỏng 60 phút: thích ứng giảm thời gian chờ 25–95 % ở 4 kiểu dòng xe, ngang bằng khi dòng xe đều, tăng 57 % khi rất ít xe rẽ trái |
+| 2026-10-11 | Thầy tạo repo GitHub `ArisuTsuberuku/den-giao-thong-thong-minh`; đã đẩy code lên nhánh `main` |
+| 2026-10-11 | Thêm cắt xanh sớm theo yêu cầu của thầy: tổ hợp đang xanh hết xe quá 5 s mà hướng khác có xe chờ thì chuyển vàng ngay; bước kế không còn xe thì bỏ qua. Mô phỏng 60 phút: thời gian chờ trung bình của chế độ thích ứng giảm thêm 17–70 % so với khi chưa cắt sớm, và thấp hơn chế độ cố định 10–98 % ở cả 6 kiểu dòng xe |

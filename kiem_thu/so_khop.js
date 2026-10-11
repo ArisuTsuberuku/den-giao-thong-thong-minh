@@ -26,7 +26,7 @@ function taoNgauNhien(hat) {
 }
 
 const TEN_TS = ['che_do', 't_min', 't_max', 'cong_them', 'xe_quy_doi', 't_vang', 't_do', 'cd_thang', 'cd_trai',
-                'mat_tin_hieu', 'ut_xanh_an_toan', 'ut_giu', 'ut_toi_da'];
+                'mat_tin_hieu', 'ut_xanh_an_toan', 'ut_giu', 'ut_toi_da', 'cat_som'];
 
 // ---- sinh kịch bản ----
 const r = taoNgauNhien(20261011);
@@ -35,7 +35,8 @@ const lenh = [];
 function thamSoNgauNhien() {
   const t_min = ng(5, 30) * 1000;
   return [ng(0, 1), t_min, t_min + ng(0, 60) * 1000, ng(0, 10) * 500, ng(1, 20), ng(2, 5) * 1000, ng(0, 4) * 1000,
-          ng(10, 40) * 1000, ng(5, 30) * 1000, 3000, ng(0, 8) * 1000, ng(1, 8) * 1000, ng(20, 70) * 1000];
+          ng(10, 40) * 1000, ng(5, 30) * 1000, 3000, ng(0, 8) * 1000, ng(1, 8) * 1000, ng(20, 70) * 1000,
+          r() < 0.3 ? 0 : ng(2, 10) * 1000];
 }
 for (let lan = 0; lan < 250; lan++) {
   lenh.push('TS ' + thamSoNgauNhien().join(' '));
@@ -48,13 +49,15 @@ for (let lan = 0; lan < 250; lan++) {
   let t = lan % 3 === 0 ? 4294900000 : ng(0, 100000);   // một phần kịch bản chạy qua chỗ bộ đếm 32 bit quay vòng
   lenh.push('BD ' + (t >>> 0));
   const emg_toi = [0, 0, 0, 0, 0], im_toi = [0, 0, 0, 0, 0];
+  const cs = [0, 0, 0, 0, 0], cl = [0, 0, 0, 0, 0];   // số đếm giữ nguyên một lúc rồi mới đổi, để có lúc hết xe đủ lâu
   for (let i = 0; i < 3000; i++) {
     t += ng(10, 500);
     for (let h = 1; h <= 4; h++) {
       if (r() < 0.004) im_toi[h] = t + ng(1, 15) * 1000;
       if (r() < 0.003) emg_toi[h] = t + ng(1, 80) * 1000;
       if (t < im_toi[h] || r() < 0.3) continue;
-      lenh.push(['D', h, ng(0, 5) * (r() < 0.6 ? 1 : 0), ng(0, 5) * (r() < 0.5 ? 1 : 0), t < emg_toi[h] ? ng(1, 2) : 0, t >>> 0, r() < 0.02 ? 1 : 0].join(' '));
+      if (r() < 0.04) { cs[h] = ng(0, 5) * (r() < 0.5 ? 1 : 0); cl[h] = ng(0, 5) * (r() < 0.4 ? 1 : 0); }
+      lenh.push(['D', h, cs[h], cl[h], t < emg_toi[h] ? ng(1, 2) : 0, t >>> 0, r() < 0.02 ? 1 : 0].join(' '));
     }
     if (r() < 0.002) lenh.push('TS ' + thamSoNgauNhien().join(' '));
     lenh.push('T ' + (t >>> 0));

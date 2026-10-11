@@ -23,6 +23,7 @@ struct ThamSo {
   uint32_t ut_xanh_an_toan;  // bước đang chạy phải xanh ít nhất chừng này mới bị cắt để ưu tiên
   uint32_t ut_giu;           // giữ xanh thêm sau khi không còn thấy xe ưu tiên
   uint32_t ut_toi_da;        // ưu tiên tự hủy sau thời gian này
+  uint32_t cat_som;          // chế độ thích ứng: tổ hợp đang xanh không còn xe quá lâu thế này thì cắt xanh sớm (0: tắt)
 };
 
 struct Buoc {

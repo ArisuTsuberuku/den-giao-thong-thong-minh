@@ -1,6 +1,6 @@
 // thu_cpp.cpp — Chạy bản C++ của bộ quyết định trên máy tính.
 // Đọc lệnh từ stdin, in kết quả ra stdout; so_khop.js so kết quả này với bản JavaScript.
-//   TS <13 số>                 đặt tham số
+//   TS <14 số>                 đặt tham số
 //   KH s1 l1 s2 l2 s3 l3 s4 l4 h1 h2 h3 h4   lập kế hoạch, in ra
 //   BD t                       khởi động bộ điều khiển
 //   D id s l emg t giu         nhận một bản tin đếm xe
@@ -16,11 +16,11 @@ int main() {
   char lenh[8];
   while (scanf("%7s", lenh) == 1) {
     if (!strcmp(lenh, "TS")) {
-      unsigned v[13];
-      for (int i = 0; i < 13; i++) if (scanf("%u", &v[i]) != 1) return 1;
+      unsigned v[14];
+      for (int i = 0; i < 14; i++) if (scanf("%u", &v[i]) != 1) return 1;
       ts.che_do = (uint8_t)v[0]; ts.t_min = v[1]; ts.t_max = v[2]; ts.cong_them = v[3];
       ts.xe_quy_doi = v[4]; ts.t_vang = v[5]; ts.t_do = v[6]; ts.cd_thang = v[7]; ts.cd_trai = v[8];
-      ts.mat_tin_hieu = v[9]; ts.ut_xanh_an_toan = v[10]; ts.ut_giu = v[11]; ts.ut_toi_da = v[12];
+      ts.mat_tin_hieu = v[9]; ts.ut_xanh_an_toan = v[10]; ts.ut_giu = v[11]; ts.ut_toi_da = v[12]; ts.cat_som = v[13];
     } else if (!strcmp(lenh, "KH")) {
       unsigned v[12];
       for (int i = 0; i < 12; i++) if (scanf("%u", &v[i]) != 1) return 1;

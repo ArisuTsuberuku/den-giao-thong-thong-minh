@@ -1,8 +1,8 @@
 // dieu_khien.h — Máy trạng thái chạy kế hoạch đèn: xanh → vàng → đỏ toàn phần → bước kế.
 // Không dùng hàm nào của Arduino nên biên dịch được cả trên máy tính (xem kiem_thu/).
 // Bản JavaScript tương ứng: web/dieu_khien.js (hai bản phải cho cùng vết đèn).
-// Nguyên tắc: kế hoạch chỉ đổi ở ranh giới chu kì; ngoại lệ duy nhất là xe ưu tiên,
-// và khi đó vẫn đi đủ vàng rồi đỏ toàn phần.
+// Nguyên tắc: tổ hợp và thứ tự các bước chốt ở đầu chu kì. Hai ngoại lệ, đều vẫn đi đủ vàng
+// rồi đỏ toàn phần: xe ưu tiên, và cắt xanh sớm khi tổ hợp đang xanh hết xe (chế độ thích ứng).
 #pragma once
 #include "quyet_dinh.h"
 
@@ -20,6 +20,7 @@
 #define SK_UU_TIEN 3       // bắt đầu ưu tiên (dl = hướng)
 #define SK_HET_UU_TIEN 4   // hết ưu tiên (dl = hướng)
 #define SK_LOI 5           // lỗi an toàn
+#define SK_CAT_SOM 6       // cắt xanh sớm vì tổ hợp đang xanh hết xe (dl = mặt nạ tổ hợp bị cắt)
 
 struct SoDem {
   uint8_t s, l, emg;
@@ -45,8 +46,11 @@ public:
   uint32_t t_het;          // thời điểm hết trạng thái hiện tại
   uint32_t t_xanh_tu;      // thời điểm bước hiện tại bắt đầu xanh
   KeHoach kh;              // kế hoạch của chu kì đang chạy
+  uint8_t che_do_kh;       // chế độ lúc chốt kế hoạch đó
   int i_buoc;
   uint32_t chu_ki;
+  bool dang_trong;         // tổ hợp đang xanh hiện không còn xe
+  uint32_t t_trong_tu;     // ... kể từ lúc này
   uint8_t ut_huong;        // đang ưu tiên hướng nào (0: không)
   uint32_t ut_bat_dau;
   uint32_t ut_thay;        // lần cuối còn thấy xe ưu tiên
@@ -60,7 +64,8 @@ public:
       ut_khoa[h] = false;
     }
     pha = PHA_KHOI_DONG; xanh = 0; vang = 0; dich = 0; dich_xanh = 0;
-    t_het = 0; t_xanh_tu = 0; kh.so_buoc = 0; i_buoc = -1; chu_ki = 0;
+    t_het = 0; t_xanh_tu = 0; kh.so_buoc = 0; che_do_kh = CHE_DO_CO_DINH; i_buoc = -1; chu_ki = 0;
+    dang_trong = false; t_trong_tu = 0;
     ut_huong = 0; ut_bat_dau = 0; ut_thay = 0; loi = false; khiSuKien = 0;
   }
 
@@ -68,6 +73,7 @@ public:
     pha = PHA_KHOI_DONG;   // bật máy: đỏ toàn phần một lúc rồi mới chạy
     xanh = 0; vang = 0; loi = false;
     kh.so_buoc = 0; i_buoc = -1; chu_ki = 0; ut_huong = 0;
+    dang_trong = false;
     t_het = t + ts->t_do;
   }
 
@@ -119,6 +125,7 @@ public:
     xanh = dich; vang = 0;
     pha = PHA_XANH;
     t_xanh_tu = t;
+    dang_trong = false;
     t_het = t + dich_xanh;
     if (ut_huong) ut_thay = t;   // xanh ưu tiên luôn giữ ít nhất ut_giu
     baoSuKien(SK_BUOC, 0);
@@ -142,10 +149,53 @@ public:
       s[h] = dem[h].s; l[h] = dem[h].l; hop_le[h] = conHan(h, t);
     }
     kh = lapKeHoach(*ts, s, l, hop_le);
+    che_do_kh = ts->che_do;
     chu_ki++;
     i_buoc = 0;
     baoSuKien(SK_CHU_KI, 0);
     chuyenSang(kh.buoc[0].mat_na, kh.buoc[0].xanh, t);
+  }
+
+  // Số xe mà tổ hợp m phục vụ: nhóm thẳng phục vụ cả hai làn, nhóm trái chỉ phục vụ làn trong.
+  // Trả về -1 nếu camera của một hướng trong tổ hợp mất tín hiệu (không biết thì không cắt, không bỏ).
+  int nhuCau(uint8_t m, uint32_t t) const {
+    int n = 0;
+    for (int h = 1; h <= 4; h++) {
+      bool thang = (m & bitThang(h)) != 0, trai = (m & bitTrai(h)) != 0;
+      if (!thang && !trai) continue;
+      if (!conHan(h, t)) return -1;
+      n += thang ? dem[h].s + dem[h].l : dem[h].l;
+    }
+    return n;
+  }
+
+  // Có xe đang chờ mà tổ hợp m không phục vụ không? Camera mất tín hiệu thì coi như có.
+  bool coXeChoNgoai(uint8_t m, uint32_t t) const {
+    for (int h = 1; h <= 4; h++) {
+      if (m & bitThang(h)) continue;
+      if (!conHan(h, t)) return true;
+      if (m & bitTrai(h)) { if (dem[h].s > 0) return true; }
+      else if (dem[h].s + dem[h].l > 0) return true;
+    }
+    return false;
+  }
+
+  bool duocCatSom() const {
+    return che_do_kh == CHE_DO_THICH_UNG && ts->cat_som > 0;
+  }
+
+  // Sang bước kế của kế hoạch. Khi bật cắt sớm, bước nào không còn xe thì bỏ qua.
+  void buocKe(uint32_t t) {
+    int i = i_buoc + 1;
+    if (duocCatSom()) {
+      while (i < (int)kh.so_buoc && nhuCau(kh.buoc[i].mat_na, t) == 0) i++;
+    }
+    if (i < (int)kh.so_buoc) {
+      i_buoc = i;
+      chuyenSang(kh.buoc[i].mat_na, kh.buoc[i].xanh, t);
+    } else {
+      chuKiMoi(t);
+    }
   }
 
   bool motBuoc(uint32_t t) {
@@ -175,13 +225,19 @@ public:
             return true;
           }
         }
-        if (!daToi(t, t_het)) return false;
-        if (i_buoc + 1 < (int)kh.so_buoc) {
-          i_buoc++;
-          chuyenSang(kh.buoc[i_buoc].mat_na, kh.buoc[i_buoc].xanh, t_het);
-        } else {
-          chuKiMoi(t_het);
+        if (duocCatSom()) {
+          // Cắt xanh sớm: tổ hợp đang xanh không còn xe suốt cat_som, và có xe khác đang chờ
+          if (nhuCau(xanh, t) == 0) {
+            if (!dang_trong) { dang_trong = true; t_trong_tu = t; }
+          } else dang_trong = false;
+          if (dang_trong && (uint32_t)(t - t_trong_tu) >= ts->cat_som && coXeChoNgoai(xanh, t)) {
+            baoSuKien(SK_CAT_SOM, xanh);
+            buocKe(t);
+            return true;
+          }
         }
+        if (!daToi(t, t_het)) return false;
+        buocKe(t_het);
         return true;
       case PHA_VANG:
         if (!daToi(t, t_het)) return false;

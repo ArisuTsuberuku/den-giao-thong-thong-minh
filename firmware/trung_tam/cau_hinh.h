@@ -42,3 +42,4 @@ static const uint8_t CHAN_DEN[8][3] = {
 #define UT_XANH_AN_TOAN 5000    // bước đang chạy phải xanh ít nhất chừng này mới bị cắt để ưu tiên
 #define UT_GIU 5000             // giữ xanh thêm sau khi không còn thấy xe ưu tiên
 #define UT_TOI_DA 60000         // ưu tiên tự hủy sau thời gian này
+#define CAT_SOM 5000            // chế độ thích ứng: tổ hợp đang xanh hết xe quá 5 s mà hướng khác có xe chờ thì cắt xanh sớm (0: tắt)
