@@ -27,6 +27,12 @@ inline bool nhanDienKhoiTao() {
   return anh_mo_hinh != NULL;
 }
 
+// Tên lớp của mô hình → loại xe (0 xe thường, 1 cứu hỏa, 2 quân sự, 3 công an, 4 cứu thương).
+inline uint8_t loaiTheoNhan(const char *nhan) {
+  for (uint8_t k = 0; k < 4; k++) if (strcmp(nhan, NHAN_UU_TIEN[k]) == 0) return (uint8_t)(k + 1);
+  return strcmp(nhan, NHAN_UU_TIEN_CHUNG) == 0 ? 4 : 0;
+}
+
 // Trả về số xe tìm được (ghi vào ra[]), hoặc -1 nếu mô hình báo lỗi.
 inline int nhanDien(const camera_fb_t *fb, const CauHinhCam &ch, VatThe *ra, int toi_da) {
   catRoi(fb, ch, anh_mo_hinh, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
@@ -43,7 +49,7 @@ inline int nhanDien(const camera_fb_t *fb, const CauHinhCam &ch, VatThe *ra, int
     // tâm ô trên ảnh mô hình → toạ độ trên khung 320 × 240
     ra[n].x = ch.roi_x + (o.x + o.width / 2.0f) * ch.roi_w / EI_CLASSIFIER_INPUT_WIDTH;
     ra[n].y = ch.roi_y + (o.y + o.height / 2.0f) * ch.roi_h / EI_CLASSIFIER_INPUT_HEIGHT;
-    ra[n].uu_tien = strcmp(o.label, NHAN_XE_UU_TIEN) == 0;
+    ra[n].loai = loaiTheoNhan(o.label);
     n++;
   }
   return n;

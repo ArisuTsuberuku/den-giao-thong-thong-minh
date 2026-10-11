@@ -46,7 +46,7 @@ void loop() {
 BoLoc bo_loc;
 VatThe xe[SO_XE_TOI_DA];
 uint32_t t_gui = 0, t_in = 0, so_khung = 0, t_khung = 0;
-KetQuaKhung da_in = {255, 255, 255};
+KetQuaKhung da_in = {255, 255, 255, 255};
 
 void setup() {
   Serial.begin(TOC_DO_SERIAL);
@@ -74,8 +74,8 @@ void loop() {
     t_gui = bay_gio;
     KetQuaKhung kq = bo_loc.layKetQua();
     char goi[96];
-    guiBanTin(kq.s, kq.l, kq.emg, goi, sizeof(goi));
-    bool doi = kq.s != da_in.s || kq.l != da_in.l || kq.emg != da_in.emg;
+    guiBanTin(kq.s, kq.l, kq.emg, kq.ut, goi, sizeof(goi));
+    bool doi = kq.s != da_in.s || kq.l != da_in.l || kq.emg != da_in.emg || kq.ut != da_in.ut;
     if (doi || bay_gio - t_in >= 2000) {              // in khi số đếm đổi, hoặc 2 giây một lần
       float khung_giay = so_khung * 1000.0f / (bay_gio - t_khung + 1);
       Serial.printf("%s   (%.1f khung/giây)\n", goi, khung_giay);
@@ -88,7 +88,7 @@ void loop() {
 // ============================ Chế độ giả lập ============================
 #include "gui_tin.h"
 
-uint8_t gia_s = 0, gia_l = 0, gia_emg = 0;
+uint8_t gia_s = 0, gia_l = 0, gia_emg = 0, gia_ut = 0;
 uint32_t t_gui = 0, t_in = 0;
 char dong[32];
 uint8_t dai_dong = 0;
@@ -99,6 +99,8 @@ void setup() {
   Serial.printf("\n=== CAM %d - chế độ GIẢ LẬP ===\n", CAM_ID);
   if (!guiTinKhoiTao()) Serial.println("KHÔNG khởi tạo được ESP-NOW.");
   Serial.println("Gõ 3 số \"s l emg\" rồi Enter, ví dụ: 3 1 0  (3 xe làn ngoài, 1 xe làn trong, không có xe ưu tiên)");
+  Serial.println("Có xe ưu tiên thì thêm số thứ tư là loại xe, ví dụ: 3 1 2 1  (xe cứu hỏa ở làn trong).");
+  Serial.println("Loại xe: 1 cứu hỏa, 2 quân sự, 3 công an, 4 cứu thương. Không ghi thì là xe cứu thương.");
 }
 
 void loop() {
@@ -108,18 +110,21 @@ void loop() {
     if (c == '\n') {
       dong[dai_dong] = 0;
       dai_dong = 0;
-      int s, l, emg;
-      if (sscanf(dong, "%d %d %d", &s, &l, &emg) == 3 && s >= 0 && s <= 9 && l >= 0 && l <= 9 && emg >= 0 && emg <= 2) {
-        gia_s = (uint8_t)s; gia_l = (uint8_t)l; gia_emg = (uint8_t)emg;
-        Serial.printf("Từ giờ gửi s=%d l=%d emg=%d\n", s, l, emg);
-      } else Serial.println("Cần 3 số: s (0-9), l (0-9), emg (0, 1 hoặc 2).");
+      int s, l, emg, ut = 0;
+      int so = sscanf(dong, "%d %d %d %d", &s, &l, &emg, &ut);
+      if (so >= 3 && s >= 0 && s <= 9 && l >= 0 && l <= 9 && emg >= 0 && emg <= 2 && ut >= 0 && ut <= 4) {
+        if (emg == 0) ut = 0;
+        else if (ut == 0) ut = 4;
+        gia_s = (uint8_t)s; gia_l = (uint8_t)l; gia_emg = (uint8_t)emg; gia_ut = (uint8_t)ut;
+        Serial.printf("Từ giờ gửi s=%d l=%d emg=%d ut=%d\n", s, l, emg, ut);
+      } else Serial.println("Cần 3 hoặc 4 số: s (0-9), l (0-9), emg (0, 1 hoặc 2), ut (1 đến 4).");
     } else if (dai_dong < sizeof(dong) - 1) dong[dai_dong++] = c;
   }
   uint32_t bay_gio = millis();
   if (bay_gio - t_gui >= CHU_KI_GUI_MS) {
     t_gui = bay_gio;
     char goi[96];
-    bool duoc = guiBanTin(gia_s, gia_l, gia_emg, goi, sizeof(goi));
+    bool duoc = guiBanTin(gia_s, gia_l, gia_emg, gia_ut, goi, sizeof(goi));
     if (bay_gio - t_in >= 2000) { t_in = bay_gio; Serial.printf("%s  %s\n", goi, duoc ? "" : "(gửi lỗi)"); }
   }
 }

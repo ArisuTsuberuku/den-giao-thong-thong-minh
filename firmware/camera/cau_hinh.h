@@ -67,5 +67,9 @@ static const CauHinhCam CAU_HINH_CAM[5] = {
 #define THU_VIEN_EI <den_giao_thong_inferencing.h>
 #endif
 #define NGUONG_TIN_CAY 0.5f          // bỏ các ô mô hình không chắc chắn
-#define NHAN_XE_UU_TIEN "xe_uu_tien" // tên lớp xe ưu tiên lúc gán nhãn; các lớp khác đều tính là xe thường
+// Tên lớp của 4 loại xe ưu tiên lúc gán nhãn trên Edge Impulse, theo đúng thứ tự được mở đèn
+// "hỏa → sự → công → thương" (ut = 1, 2, 3, 4). Mọi lớp khác đều tính là xe thường.
+// Mô hình chỉ có một lớp xe ưu tiên chung thì đặt tên lớp đó là "xe_uu_tien": trung tâm coi là xe cứu thương.
+static const char *const NHAN_UU_TIEN[4] = {"xe_cuu_hoa", "xe_quan_su", "xe_cong_an", "xe_cuu_thuong"};
+#define NHAN_UU_TIEN_CHUNG "xe_uu_tien"
 #define SO_XE_TOI_DA 24

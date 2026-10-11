@@ -1,9 +1,9 @@
 // trung_tam.ino — Board trung tâm ESP32-S3 N16R8 của sa bàn đèn giao thông thông minh.
 // Việc của board: nhận số xe từng làn do 4 camera gửi về (ESP-NOW) hoặc gõ tay (Serial),
-// lập kế hoạch đèn cho từng chu kì và điều khiển 24 bóng đèn của 8 cụm.
+// lập kế hoạch đèn cho từng lượt và điều khiển 24 bóng đèn của 8 cụm.
 //
-//   quyet_dinh.h  bộ luật lập kế hoạch một chu kì (sửa luật ở đây, nhớ sửa cả web/quyet_dinh.js)
-//   dieu_khien.h  máy trạng thái xanh → vàng → đỏ toàn phần, xe ưu tiên
+//   quyet_dinh.h  bộ luật lập kế hoạch (sửa luật ở đây, nhớ sửa cả web/quyet_dinh.js)
+//   dieu_khien.h  máy trạng thái xanh → vàng → đỏ toàn phần, xe ưu tiên, tự học kiểu chia pha
 //   den.h         xuất chân đèn, có kiểm tra xung đột
 //   nhan_tin.h    nhận ESP-NOW, giải mã JSON
 //   cau_hinh.h    chân, kênh WiFi, thời gian
@@ -17,7 +17,8 @@
 
 ThamSo ts = {
   CHE_DO_BAN_DAU, T_MIN, T_MAX, CONG_THEM, XE_QUY_DOI, T_VANG, T_DO_TOAN_PHAN,
-  CD_THANG, CD_TRAI, MAT_TIN_HIEU, UT_XANH_AN_TOAN, UT_GIU, UT_TOI_DA, CAT_SOM
+  CD_THANG, CD_TRAI, MAT_TIN_HIEU, UT_XANH_AN_TOAN, UT_GIU, UT_TOI_DA, CAT_SOM,
+  KIEU_PHA, HOC_SO_CHU_KI, HOC_SO_XE, HOC_NGUONG
 };
 DieuKhien dk(&ts);
 
@@ -33,6 +34,36 @@ char dong_serial[160];
 uint8_t dai_dong = 0;
 
 // ---------- In ra Serial ----------
+const char *tenKieu(uint32_t k) {
+  switch (k) {
+    case KIEU_TU_HOC: return "tự học";
+    case KIEU_THANG_TRUOC: return "thẳng trước";
+    case KIEU_DOI_XUNG: return "đối xứng";
+    default: return "riêng từng hướng";
+  }
+}
+
+const char *tenXeUuTien(uint8_t ut) {
+  switch (ut) {
+    case UT_CUU_HOA: return "xe cứu hỏa";
+    case UT_QUAN_SU: return "xe quân sự";
+    case UT_CONG_AN: return "xe công an";
+    case UT_CUU_THUONG: return "xe cứu thương";
+    default: return "xe ưu tiên";
+  }
+}
+
+const char *tenTruc(uint8_t truc) {
+  return truc ? "trục ngang" : "trục dọc";
+}
+
+// Kiểu chia pha đang dùng cho từng trục, ví dụ "dọc riêng từng hướng, ngang thẳng trước"
+void inKieuDangDung() {
+  uint8_t k[2];
+  dk.kieuChoChuKi(k);
+  Serial.printf("dọc %s, ngang %s", tenKieu(k[0]), tenKieu(k[1]));
+}
+
 void inThoiGian() {
   Serial.printf("[%7.1f s] ", t_dieu_khien / 1000.0);
 }
@@ -60,8 +91,9 @@ void khiSuKien(uint8_t loai, uint8_t dl) {
   inThoiGian();
   switch (loai) {
     case SK_CHU_KI:
-      Serial.printf("Chu kì %lu (%s). Số xe làn ngoài/làn trong:", (unsigned long)dk.chu_ki,
-                    ts.che_do == CHE_DO_CO_DINH ? "cố định" : "thích ứng");
+      if (dk.che_do_kh == CHE_DO_CO_DINH) Serial.printf("Chu kì %lu (cố định).", (unsigned long)dk.chu_ki);
+      else Serial.printf("Lượt %lu (thích ứng, %s).", (unsigned long)dk.chu_ki, tenTruc(trucCuaMatNa(dk.kh.buoc[0].mat_na)));
+      Serial.print(" Số xe làn ngoài/làn trong:");
       inSoDem();
       Serial.print(". Kế hoạch: ");
       for (int i = 0; i < dk.kh.so_buoc; i++) {
@@ -74,19 +106,34 @@ void khiSuKien(uint8_t loai, uint8_t dl) {
     case SK_BUOC:
       Serial.print("Xanh: ");
       inToHop(dk.xanh);
-      if (dk.ut_huong) Serial.println(" (ưu tiên)");
+      if (dk.ut_huong) Serial.printf(" (ưu tiên %s, xe qua là chuyển vàng)\n", tenXeUuTien(dk.dem[dk.ut_huong].ut));
       else Serial.printf(" trong %lu s\n", (unsigned long)(dk.dich_xanh / 1000));
       break;
     case SK_UU_TIEN:
-      Serial.printf("Camera Hướng %u thấy xe ưu tiên: kết thúc bước đang chạy rồi mở riêng Hướng %u\n", dl, dl);
+      Serial.printf("Camera Hướng %u thấy %s: kết thúc bước đang chạy rồi mở riêng Hướng %u\n", dl, tenXeUuTien(dk.dem[dl].ut), dl);
       break;
     case SK_HET_UU_TIEN:
-      Serial.printf("Hết ưu tiên Hướng %u, lập kế hoạch chu kì mới\n", dl);
+      Serial.printf("Hết ưu tiên Hướng %u: chuyển vàng ngay, trả đèn cho hướng đang chờ\n", dl);
       break;
     case SK_CAT_SOM:
       Serial.print("Hết xe ở ");
       inToHop(dl);
       Serial.printf(" quá %lu s: cắt xanh sớm\n", (unsigned long)(ts.cat_som / 1000));
+      break;
+    case SK_HOC_THU:
+      Serial.printf("Tự học: thử kiểu \"%s\" cho %s. Thời gian chờ đang đo được: %.1f s mỗi xe\n", tenKieu(dl % 4), tenTruc(dl / 4),
+                    dk.hoc.diem_giu / 1000.0);
+      break;
+    case SK_HOC_NHAN:
+      Serial.printf("Tự học: giữ kiểu \"%s\" cho %s (chờ %.1f s mỗi xe, ít hơn kiểu cũ)\n", tenKieu(dl % 4), tenTruc(dl / 4),
+                    dk.hoc.diem_thu / 1000.0);
+      break;
+    case SK_HOC_TRA:
+      Serial.printf("Tự học: kiểu \"%s\" không hơn (chờ %.1f s so với %.1f s mỗi xe), %s trả về kiểu cũ\n", tenKieu(dl % 4),
+                    dk.hoc.diem_thu / 1000.0, dk.hoc.diem_giu / 1000.0, tenTruc(dl / 4));
+      break;
+    case SK_HOC_HUY:
+      Serial.printf("Tự học: bỏ lần thử ở %s vì có xe ưu tiên hoặc thiếu camera\n", tenTruc(dl));
       break;
     case SK_LOI:
       Serial.println("LỖI AN TOÀN: tổ hợp đèn xung đột. Tất cả nháy vàng. Bấm RST để chạy lại.");
@@ -96,20 +143,35 @@ void khiSuKien(uint8_t loai, uint8_t dl) {
 
 void inTrangThai() {
   inThoiGian();
-  Serial.printf("Chế độ %s, tua x%lu, cắt sớm %lu s, chu kì %lu, bước %d/%u. ", ts.che_do == CHE_DO_CO_DINH ? "cố định" : "thích ứng",
-                (unsigned long)he_so_tua, (unsigned long)(ts.cat_som / 1000), (unsigned long)dk.chu_ki, dk.i_buoc + 1, dk.kh.so_buoc);
+  Serial.printf("Chế độ %s, tua x%lu, cắt sớm %lu s, %s %lu, bước %d/%u. ", ts.che_do == CHE_DO_CO_DINH ? "cố định" : "thích ứng",
+                (unsigned long)he_so_tua, (unsigned long)(ts.cat_som / 1000), dk.che_do_kh == CHE_DO_CO_DINH ? "chu kì" : "lượt",
+                (unsigned long)dk.chu_ki, dk.i_buoc + 1, dk.kh.so_buoc);
   const char *ten_pha[] = {"khởi động", "xanh", "vàng", "đỏ toàn phần"};
   Serial.printf("Đang %s: ", dk.loi ? "LỖI" : ten_pha[dk.pha]);
   inToHop(dk.pha == PHA_VANG ? dk.vang : dk.xanh);
   int32_t con = dk.conLai(t_dieu_khien);
   if (con >= 0) Serial.printf(", còn %ld s", (long)((con + 999) / 1000));
   Serial.println();
+  if (ts.che_do == CHE_DO_THICH_UNG) {
+    Serial.printf("  Kiểu chia pha: %s", tenKieu(ts.kieu_pha));
+    if (ts.kieu_pha == KIEU_TU_HOC) {
+      Serial.print(" (đang dùng: ");
+      inKieuDangDung();
+      if (dk.hoc.dang_thu) Serial.printf("; đang thử ở %s", tenTruc(dk.hoc.truc_thu));
+      if (dk.hoc.diem_giu >= 0) Serial.printf("; chờ %.1f s mỗi xe", dk.hoc.diem_giu / 1000.0);
+      Serial.printf("; cửa sổ đo: %lu lượt, %lu xe qua)", (unsigned long)dk.hoc.so_ck, (unsigned long)(dk.hoc.luot / 2));
+    }
+    Serial.println();
+  }
   for (int h = 1; h <= 4; h++) {
     const SoDem &d = dk.dem[h];
     Serial.printf("  Hướng %d: ", h);
     if (!d.co) Serial.print("chưa có tin");
-    else Serial.printf("làn ngoài %u, làn trong %u, emg %u%s%s", d.s, d.l, d.emg, d.giu ? " (gõ tay)" : "",
-                       dk.conHan(h, t_dieu_khien) ? "" : " - MẤT TÍN HIỆU");
+    else {
+      Serial.printf("làn ngoài %u, làn trong %u", d.s, d.l);
+      if (d.ut) Serial.printf(", có %s ở làn %s", tenXeUuTien(d.ut), d.emg == 2 ? "trong" : "ngoài");
+      Serial.printf("%s%s", d.giu ? " (gõ tay)" : "", dk.conHan(h, t_dieu_khien) ? "" : " - MẤT TÍN HIỆU");
+    }
     uint32_t tong = goi[h].so_goi + goi[h].so_mat;
     if (tong) Serial.printf(" | ESP-NOW: nhận %lu gói, mất %lu (%.1f %%)", (unsigned long)goi[h].so_goi,
                             (unsigned long)goi[h].so_mat, 100.0 * goi[h].so_mat / tong);
@@ -122,7 +184,10 @@ void inHuongDan() {
   Serial.println("=== Trung tâm đèn giao thông thông minh - NCKHKT 2026 ===");
   Serial.println("Gõ vào ô gửi của Serial Monitor (115200, kết thúc dòng bằng Newline):");
   Serial.println("  {\"id\":1,\"s\":3,\"l\":1,\"emg\":0}   giả làm camera Hướng 1: 3 xe làn ngoài, 1 xe làn trong");
-  Serial.println("  codinh | thichung              đổi chế độ, có hiệu lực từ chu kì sau");
+  Serial.println("  {\"id\":2,\"s\":1,\"l\":0,\"emg\":1,\"ut\":1}   Hướng 2 có xe ưu tiên ở làn ngoài (emg 1 ngoài, 2 trong);");
+  Serial.println("                                 ut: 1 cứu hỏa, 2 quân sự, 3 công an, 4 cứu thương (số nhỏ đi trước)");
+  Serial.println("  codinh | thichung              đổi chế độ, có hiệu lực từ lượt sau");
+  Serial.println("  kieu rieng | thangtruoc | doixung | tuhoc   kiểu chia pha của chế độ thích ứng");
   Serial.println("  tua 4                          chạy nhanh gấp 4 (1 đến 8)");
   Serial.println("  catsom 5                       hết xe quá 5 s thì cắt xanh sớm (0 là tắt)");
   Serial.println("  xem                            in trạng thái và tỉ lệ mất gói");
@@ -138,9 +203,12 @@ void nhanBanTin(const char *chuoi, bool tu_serial) {
     if (tu_serial) Serial.println("Không hiểu bản tin. Ví dụ đúng: {\"id\":1,\"s\":3,\"l\":1,\"emg\":0}");
     return;
   }
-  dk.nhanDem(b.id, b.s, b.l, b.emg, t_dieu_khien, tu_serial);
+  dk.nhanDem(b.id, b.s, b.l, b.emg, t_dieu_khien, tu_serial, b.ut);
   if (tu_serial) {
-    Serial.printf("Đã nhận Hướng %d: làn ngoài %d, làn trong %d, emg %d. Dùng cho chu kì sau.\n", b.id, b.s, b.l, b.emg);
+    const SoDem &d = dk.dem[b.id];
+    Serial.printf("Đã nhận Hướng %d: làn ngoài %u, làn trong %u", b.id, d.s, d.l);
+    if (d.ut) Serial.printf(", có %s ở làn %s", tenXeUuTien(d.ut), d.emg == 2 ? "trong" : "ngoài");
+    Serial.println(". Dùng cho lượt sau.");
     return;
   }
   ThongKeGoi &g = goi[b.id];
@@ -156,7 +224,22 @@ void xuLyLenh(char *dong) {
   if (*dong == 0) return;
   if (*dong == '{') { nhanBanTin(dong, true); return; }
   if (!strcmp(dong, "codinh")) { ts.che_do = CHE_DO_CO_DINH; Serial.println("Chế độ cố định, từ chu kì sau."); }
-  else if (!strcmp(dong, "thichung")) { ts.che_do = CHE_DO_THICH_UNG; Serial.println("Chế độ thích ứng, từ chu kì sau."); }
+  else if (!strcmp(dong, "thichung")) { ts.che_do = CHE_DO_THICH_UNG; Serial.println("Chế độ thích ứng, từ lượt sau."); }
+  else if (!strncmp(dong, "kieu", 4)) {
+    const char *k = dong + 4;
+    while (*k == ' ') k++;
+    if (!strcmp(k, "rieng")) ts.kieu_pha = KIEU_RIENG;
+    else if (!strcmp(k, "thangtruoc")) ts.kieu_pha = KIEU_THANG_TRUOC;
+    else if (!strcmp(k, "doixung")) ts.kieu_pha = KIEU_DOI_XUNG;
+    else if (!strcmp(k, "tuhoc")) { ts.kieu_pha = KIEU_TU_HOC; dk.hocMoi(); }
+    else { Serial.println("Gõ: kieu rieng, kieu thangtruoc, kieu doixung hoặc kieu tuhoc."); return; }
+    Serial.printf("Kiểu chia pha: %s, từ lượt sau.", tenKieu(ts.kieu_pha));
+    if (ts.kieu_pha == KIEU_TU_HOC)
+      Serial.printf(" Mỗi lần đo dài ít nhất %lu vòng và %lu xe; bắt đầu từ kiểu riêng từng hướng.",
+                    (unsigned long)ts.hoc_so_chu_ki, (unsigned long)ts.hoc_so_xe);
+    if (ts.che_do != CHE_DO_THICH_UNG) Serial.print(" (Chỉ có tác dụng ở chế độ thích ứng.)");
+    Serial.println();
+  }
   else if (!strncmp(dong, "tua", 3)) {
     int n = atoi(dong + 3);
     if (n < 1) n = 1;
@@ -175,7 +258,7 @@ void xuLyLenh(char *dong) {
   }
   else if (!strcmp(dong, "xem")) inTrangThai();
   else if (!strcmp(dong, "xoa")) {
-    for (int h = 1; h <= 4; h++) if (dk.dem[h].giu) { dk.dem[h].co = false; dk.dem[h].giu = false; dk.dem[h].emg = 0; }
+    for (int h = 1; h <= 4; h++) if (dk.dem[h].giu) { dk.dem[h].co = false; dk.dem[h].giu = false; dk.dem[h].emg = 0; dk.dem[h].ut = 0; }
     Serial.println("Đã bỏ các số đếm gõ tay.");
   }
   else if (!strcmp(dong, "thuday")) {

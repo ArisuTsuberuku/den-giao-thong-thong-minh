@@ -44,24 +44,37 @@ int main() {
   KIEM(!trongTuGiac(thang, 70, 30), "goc tren trai nam ngoai hinh thang");
   KIEM(trongTuGiac(thang, 70, 220), "gan day duoi nam trong");
   KIEM(!trongTuGiac(thang, 200, 100), "ben phai nam ngoai");
-  VatThe xe[5] = {{120, 80, false}, {130, 150, false}, {180, 100, true}, {250, 100, false}, {190, 180, false}};
+  VatThe xe[5] = {{120, 80, 0}, {130, 150, 0}, {180, 100, 4}, {250, 100, 1}, {190, 180, 0}};
   KetQuaKhung kq = phanLan(xe, 5, ch);
-  KIEM(kq.s == 2 && kq.l == 2 && kq.emg == 2, "phan lan: 2 xe lan ngoai, 2 xe lan trong, xe uu tien o lan trong, 1 xe ngoai vung bi bo");
+  KIEM(kq.s == 2 && kq.l == 2 && kq.emg == 2 && kq.ut == 4,
+       "phan lan: 2 xe lan ngoai, 2 xe lan trong, xe cuu thuong o lan trong, xe cuu hoa ngoai vung bi bo");
+  VatThe hai_ut[3] = {{180, 100, 4}, {120, 80, 2}, {130, 150, 3}};
+  kq = phanLan(hai_ut, 3, ch);
+  KIEM(kq.emg == 1 && kq.ut == 2, "nhieu xe uu tien trong vung: bao xe hang cao nhat (quan su truoc cong an, cuu thuong)");
 
   // ---------- lọc nhiễu ----------
   BoLoc loc;
-  KetQuaKhung day[] = {{3, 1, 0}, {3, 1, 0}, {9, 1, 1}, {3, 0, 0}, {3, 1, 0}};   // khung thứ 3 nhiễu
+  KetQuaKhung day[] = {{3, 1, 0, 0}, {3, 1, 0, 0}, {9, 1, 1, 1}, {3, 0, 0, 0}, {3, 1, 0, 0}};   // khung thứ 3 nhiễu
   for (int i = 0; i < 5; i++) loc.them(day[i]);
   kq = loc.layKetQua();
-  KIEM(kq.s == 3 && kq.l == 1 && kq.emg == 0, "trung vi bo duoc 1 khung nhieu; emg 1/5 khung chua bat");
-  KetQuaKhung sach = {3, 1, 0}, co_ut = {3, 1, 2};
+  KIEM(kq.s == 3 && kq.l == 1 && kq.emg == 0 && kq.ut == 0, "trung vi bo duoc 1 khung nhieu; emg 1/5 khung chua bat");
+  KetQuaKhung sach = {3, 1, 0, 0}, co_ut = {3, 1, 2, 1};
   for (int i = 0; i < 3; i++) loc.them(sach);        // đẩy khung nhiễu ra khỏi 5 khung gần nhất
   loc.them(co_ut); loc.them(co_ut);
   KIEM(loc.layKetQua().emg == 0, "emg 2/5 khung chua bat");
   loc.them(co_ut);
-  KIEM(loc.layKetQua().emg == 2, "emg 3/5 khung thi bat, dung lan trong");
+  KIEM(loc.layKetQua().emg == 2 && loc.layKetQua().ut == 1, "emg 3/5 khung thi bat, dung lan trong, dung loai xe cuu hoa");
+  KetQuaKhung nham = {3, 1, 2, 3};                    // mô hình nhìn nhầm thành xe công an ở 2 khung
+  loc.them(nham); loc.them(nham);
+  KIEM(loc.layKetQua().emg == 2 && loc.layKetQua().ut == 1, "loai xe lay theo da so: 3 khung cuu hoa, 2 khung cong an -> cuu hoa");
+  loc.them(nham);
+  KIEM(loc.layKetQua().ut == 3, "3 khung cong an, 2 khung cuu hoa -> cong an");
+  BoLoc cu;
+  KetQuaKhung kieu_cu = {1, 0, 1, 0};                 // có emg mà không ghi loại
+  for (int i = 0; i < 3; i++) cu.them(kieu_cu);
+  KIEM(cu.layKetQua().emg == 1 && cu.layKetQua().ut == 4, "co emg ma khong ghi loai: coi la xe cuu thuong");
   BoLoc moi;
-  KetQuaKhung mot = {2, 0, 0};
+  KetQuaKhung mot = {2, 0, 0, 0};
   moi.them(mot);
   KIEM(moi.layKetQua().s == 2, "moi co 1 khung van tra ve duoc");
 

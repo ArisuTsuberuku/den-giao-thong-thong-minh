@@ -13,5 +13,5 @@ echo "== 3. Firmware camera: cắt ROI, gán làn, lọc nhiễu"
 g++ -std=c++11 -Wall -Wextra -o "${TMPDIR:-/tmp}/thu_camera" kiem_thu/thu_camera.cpp
 "${TMPDIR:-/tmp}/thu_camera"
 echo
-echo "== 4. Mô phỏng xe: va chạm, vượt đèn đỏ, so sánh hai chế độ (mất khoảng 2 phút)"
+echo "== 4. Mô phỏng xe: va chạm, vượt đèn đỏ, so sánh hai chế độ (mất khoảng 10 phút)"
 node kiem_thu/thu_mo_phong.js

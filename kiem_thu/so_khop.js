@@ -26,7 +26,8 @@ function taoNgauNhien(hat) {
 }
 
 const TEN_TS = ['che_do', 't_min', 't_max', 'cong_them', 'xe_quy_doi', 't_vang', 't_do', 'cd_thang', 'cd_trai',
-                'mat_tin_hieu', 'ut_xanh_an_toan', 'ut_giu', 'ut_toi_da', 'cat_som'];
+                'mat_tin_hieu', 'ut_xanh_an_toan', 'ut_giu', 'ut_toi_da', 'cat_som',
+                'kieu_pha', 'hoc_so_chu_ki', 'hoc_so_xe', 'hoc_nguong'];
 
 // ---- sinh kịch bản ----
 const r = taoNgauNhien(20261011);
@@ -35,31 +36,44 @@ const lenh = [];
 function thamSoNgauNhien() {
   const t_min = ng(5, 30) * 1000;
   return [ng(0, 1), t_min, t_min + ng(0, 60) * 1000, ng(0, 10) * 500, ng(1, 20), ng(2, 5) * 1000, ng(0, 4) * 1000,
-          ng(10, 40) * 1000, ng(5, 30) * 1000, 3000, ng(0, 8) * 1000, ng(1, 8) * 1000, ng(20, 70) * 1000,
-          r() < 0.3 ? 0 : ng(2, 10) * 1000];
+          ng(10, 40) * 1000, ng(5, 30) * 1000, 3000, ng(0, 8) * 1000, ng(0, 8) * 500, ng(20, 70) * 1000,
+          r() < 0.3 ? 0 : ng(2, 10) * 1000,
+          // kiểu chia pha (một nửa số lần là tự học), và tham số tự học nhỏ để bộ học quyết định thường xuyên
+          r() < 0.5 ? 0 : ng(1, 4), ng(0, 3), ng(0, 6), ng(0, 30)];
 }
 for (let lan = 0; lan < 250; lan++) {
-  lenh.push('TS ' + thamSoNgauNhien().join(' '));
+  // Cứ 3 kịch bản thì 1 cái dành cho bộ tự học: chế độ thích ứng, kiểu tự học, không có xe ưu tiên,
+  // camera không mất tín hiệu, số đếm đổi thường xuyên. Các kịch bản còn lại trộn đủ thứ.
+  const de_hoc = lan % 3 === 1;
+  const tsMoi = () => { const v = thamSoNgauNhien(); if (de_hoc) { v[0] = 1; v[14] = 0; v[15] = ng(1, 2); } return v; };
+  lenh.push('TS ' + tsMoi().join(' '));
   for (let i = 0; i < 40; i++) {              // bộ lập kế hoạch
     const v = [];
     for (let k = 0; k < 8; k++) v.push(r() < 0.35 ? 0 : ng(0, 6));
     for (let k = 0; k < 4; k++) v.push(r() < 0.9 ? 1 : 0);
+    v.push(ng(0, 4), ng(0, 4), ng(0, 1));       // kiểu chia pha của hai trục, trục tới lượt
     lenh.push('KH ' + v.join(' '));
   }
   let t = lan % 3 === 0 ? 4294900000 : ng(0, 100000);   // một phần kịch bản chạy qua chỗ bộ đếm 32 bit quay vòng
   lenh.push('BD ' + (t >>> 0));
   const emg_toi = [0, 0, 0, 0, 0], im_toi = [0, 0, 0, 0, 0];
   const cs = [0, 0, 0, 0, 0], cl = [0, 0, 0, 0, 0];   // số đếm giữ nguyên một lúc rồi mới đổi, để có lúc hết xe đủ lâu
+  const loai_ut = [0, 1, 1, 1, 1];
   for (let i = 0; i < 3000; i++) {
     t += ng(10, 500);
     for (let h = 1; h <= 4; h++) {
-      if (r() < 0.004) im_toi[h] = t + ng(1, 15) * 1000;
-      if (r() < 0.003) emg_toi[h] = t + ng(1, 80) * 1000;
+      if (!de_hoc && r() < 0.004) im_toi[h] = t + ng(1, 15) * 1000;
+      if (!de_hoc && r() < 0.003) emg_toi[h] = t + ng(1, 80) * 1000;
       if (t < im_toi[h] || r() < 0.3) continue;
-      if (r() < 0.04) { cs[h] = ng(0, 5) * (r() < 0.5 ? 1 : 0); cl[h] = ng(0, 5) * (r() < 0.4 ? 1 : 0); }
-      lenh.push(['D', h, cs[h], cl[h], t < emg_toi[h] ? ng(1, 2) : 0, t >>> 0, r() < 0.02 ? 1 : 0].join(' '));
+      if (r() < (de_hoc ? 0.15 : 0.04)) { cs[h] = ng(0, 5) * (r() < 0.5 ? 1 : 0); cl[h] = ng(0, 5) * (r() < 0.4 ? 1 : 0); }
+      // xe ưu tiên: loại xe giữ nguyên trong một đợt; đôi khi gửi kiểu cũ (chỉ có emg) hoặc chỉ có ut
+      const co_ut = t < emg_toi[h];
+      if (!co_ut) loai_ut[h] = ng(1, 4);
+      const kieu_tin = r();
+      lenh.push(['D', h, cs[h], cl[h], co_ut && kieu_tin < 0.9 ? ng(1, 2) : 0, t >>> 0, r() < 0.02 ? 1 : 0,
+                 co_ut && kieu_tin > 0.1 ? loai_ut[h] : 0].join(' '));
     }
-    if (r() < 0.002) lenh.push('TS ' + thamSoNgauNhien().join(' '));
+    if (r() < 0.002) lenh.push('TS ' + tsMoi().join(' '));
     lenh.push('T ' + (t >>> 0));
   }
 }
@@ -67,7 +81,7 @@ for (let lan = 0; lan < 250; lan++) {
 // ---- bản JavaScript chạy kịch bản ----
 // Bản JS không có bộ đếm 32 bit, nên với kịch bản qua chỗ quay vòng ta chạy bằng thời gian
 // chưa quay vòng rồi in ra phần 32 bit thấp.
-const ra_js = [];
+const ra_js = [], dem_sk = {};   // dem_sk: số lần mỗi loại sự kiện xảy ra, để biết kịch bản đã chạm tới những gì
 {
   const ts = QD.thamSoMacDinh();
   let dk = new DieuKhien(ts);
@@ -80,16 +94,22 @@ const ra_js = [];
     else if (p[0] === 'KH') {
       const s = [0], l = [0], hl = [false];
       for (let h = 1; h <= 4; h++) { s.push(v[(h - 1) * 2]); l.push(v[(h - 1) * 2 + 1]); hl.push(v[7 + h] !== 0); }
-      const kh = QD.lapKeHoach(ts, s, l, hl);
-      ra_js.push('KH ' + kh.length + kh.map(b => ' ' + b.mat_na + ':' + b.xanh).join(''));
-    } else if (p[0] === 'BD') { dk = new DieuKhien(ts); goc = 0; t_truoc = v[0]; dk.khoiDong(v[0]); }
-    else if (p[0] === 'D') dk.nhanDem(v[0], v[1], v[2], v[3], moRong(v[4]), v[5] !== 0);
+      const kh = QD.lapKeHoach(ts, s, l, hl, [v[12], v[13]], v[14]);
+      ra_js.push('KH ' + kh.length + kh.map(b => ' ' + b.mat_na + ':' + b.xanh + ':' + (b.ngoai ? 1 : 0)).join(''));
+    } else if (p[0] === 'BD') {
+      dk = new DieuKhien(ts); goc = 0; t_truoc = v[0];
+      dk.khiSuKien = (loai) => { dem_sk[loai] = (dem_sk[loai] || 0) + 1; };
+      dk.khoiDong(v[0]);
+    }
+    else if (p[0] === 'D') dk.nhanDem(v[0], v[1], v[2], v[3], moRong(v[4]), v[5] !== 0, v[6]);
     else if (p[0] === 'T') {
       const t = moRong(v[0]);
       dk.capNhat(t);
       const mau = [];
       for (let g = 0; g < 8; g++) mau.push(dk.mauNhom(g, v[0]));
-      ra_js.push(['T', v[0], dk.pha, dk.xanh, dk.vang, dk.i_buoc, dk.chu_ki, dk.ut_huong, dk.loi ? 1 : 0, dk.conLai(t)].concat(mau).join(' '));
+      const hc = dk.hoc;
+      ra_js.push(['T', v[0], dk.pha, dk.xanh, dk.vang, dk.i_buoc, dk.chu_ki, dk.ut_huong, dk.loi ? 1 : 0, dk.conLai(t)].concat(mau).join(' ') +
+        ' | ' + [dk.truc_ke, hc.kieu[0], hc.kieu[1], hc.dang_thu ? 1 : 0, hc.truc_thu, hc.diem_giu, hc.luot, hc.so_ck].join(' '));
     }
   }
 }
@@ -107,5 +127,8 @@ for (let i = 0; i < n && khac < 10; i++) {
   }
 }
 console.log('Đã so ' + n + ' dòng kết quả (' + lenh.length + ' lệnh).');
+console.log('Kịch bản có: ' + (dem_sk.chu_ki || 0) + ' lần chốt kế hoạch, ' + (dem_sk.cat_som || 0) + ' lần cắt xanh sớm, ' +
+  (dem_sk.uu_tien || 0) + ' lần ưu tiên; tự học: ' + (dem_sk.hoc_thu || 0) + ' lần thử, ' + (dem_sk.hoc_nhan || 0) + ' lần giữ kiểu mới, ' +
+  (dem_sk.hoc_tra || 0) + ' lần trả về, ' + (dem_sk.hoc_huy || 0) + ' lần hủy.');
 console.log(khac === 0 ? 'ĐẠT: bản C++ và bản JavaScript giống nhau hoàn toàn.' : 'KHÔNG ĐẠT.');
 process.exit(khac === 0 ? 0 : 1);

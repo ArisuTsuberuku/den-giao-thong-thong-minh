@@ -80,6 +80,20 @@ button, input, select { font: inherit; color: inherit; }
 .huong_dem { font: 12px var(--chu-so); color: var(--muc-nhat); font-variant-numeric: tabular-nums; }
 .kiem { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .kiem input { accent-color: var(--nhan); }
+.nhom_con { display: grid; gap: 5px; }
+.nhan_con { font-weight: 500; }
+.chon.chon_nho label { font-size: 12.5px; padding: 5px 2px; }
+.hang_ut { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12px; color: var(--muc-nhat); }
+.hang_ut span { flex-basis: 100%; }
+.nut.ut { border-left-width: 4px; color: var(--muc); }
+.nut.ut_1 { border-left-color: #d8281f; }
+.nut.ut_2 { border-left-color: #5d7345; }
+.nut.ut_3 { border-left-color: #2f6fd0; }
+.nut.ut_4 { border-left-color: #b9c0c7; }
+dl.hoc { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; font-size: 12.5px; }
+dl.hoc dt { color: var(--muc-nhat); }
+dl.hoc dd { margin: 0; overflow-wrap: anywhere; }
+dl.hoc dd b { font-weight: 600; }
 
 /* ---------- Phần chính ---------- */
 .chinh_dien { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; }
@@ -171,7 +185,13 @@ ul.nhat_ky span { overflow-wrap: anywhere; }
         <input type="radio" name="che_do" id="che_do_0" value="0"><label for="che_do_0">Cố định</label>
         <input type="radio" name="che_do" id="che_do_1" value="1" checked><label for="che_do_1">Thích ứng</label>
       </div>
-      <p class="ghi_chu">Đổi chế độ hay thông số đèn có hiệu lực từ chu kì sau; chu kì đang chạy giữ nguyên.</p>
+      <div class="nhom_con">
+        <div class="nhan_con" id="nhan_kieu">Kiểu chia pha khi thích ứng</div>
+        <div class="chon chon_nho" role="radiogroup" aria-labelledby="nhan_kieu" id="chon_kieu"></div>
+        <p class="ghi_chu" id="ghi_chu_kieu"></p>
+      </div>
+      <div class="nhom_con" id="muc_hoc"></div>
+      <p class="ghi_chu">Đổi chế độ, kiểu chia pha hay thông số đèn có hiệu lực từ lượt sau; lượt đang chạy giữ nguyên.</p>
     </section>
 
     <section class="muc" id="muc_den">
@@ -181,11 +201,16 @@ ul.nhat_ky span { overflow-wrap: anywhere; }
     <section class="muc" id="muc_xe">
       <h2>Xe ở các hướng</h2>
       <div class="hang_nut" id="mau_dong_xe" aria-label="Kiểu dòng xe có sẵn"></div>
+      <div class="nhom_con">
+        <div class="nhan_con" id="nhan_co_xe">Cỡ xe</div>
+        <div class="chon chon_nho" role="radiogroup" aria-labelledby="nhan_co_xe" id="chon_co_xe"></div>
+        <p class="ghi_chu" id="ghi_chu_co_xe"></p>
+      </div>
     </section>
 
     <section class="muc">
-      <h2>So sánh hai chế độ</h2>
-      <p class="ghi_chu">Chạy nhanh 30 phút mô phỏng cho mỗi chế độ, cùng một dòng xe và thông số đang đặt.</p>
+      <h2>So sánh các phương án</h2>
+      <p class="ghi_chu">Chạy nhanh 60 phút mô phỏng cho chế độ cố định và từng kiểu chia pha của chế độ thích ứng, cùng một dòng xe và thông số đang đặt. Mất khoảng 15 giây.</p>
       <div class="hang_nut"><button class="nut" id="nut_so_sanh" type="button">Chạy so sánh</button></div>
       <div id="ket_qua_so_sanh" aria-live="polite"></div>
     </section>
@@ -216,7 +241,7 @@ ul.nhat_ky span { overflow-wrap: anywhere; }
           <p class="tong" id="tong_chu_ki"></p>
         </section>
         <section class="the">
-          <h2>Chu kì sau, nếu chốt ngay lúc này</h2>
+          <h2 id="tieu_de_ke_hoach_sau">Lượt sau</h2>
           <ol class="ke_hoach" id="ke_hoach_sau"></ol>
           <p class="tong" id="tong_chu_ki_sau"></p>
         </section>
@@ -239,6 +264,11 @@ ul.nhat_ky span { overflow-wrap: anywhere; }
             </tbody>
           </table>
           <p class="tong" id="dang_cho"></p>
+          <p class="tong" id="uu_tien_tk"></p>
+        </section>
+        <section class="the">
+          <h2>Kiểu chia pha</h2>
+          <dl class="hoc" id="hoc_noi_dung"></dl>
         </section>
         <section class="the">
           <h2>Nhật ký</h2>

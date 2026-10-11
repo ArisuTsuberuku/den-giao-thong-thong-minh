@@ -1,5 +1,7 @@
-// nhan_tin.h — Nhận bản tin đếm xe {"id":1,"seq":1042,"s":3,"l":1,"emg":0}
-// từ camera qua ESP-NOW. Hàm gọi lại của ESP-NOW chạy ở luồng WiFi nên chỉ chép gói vào
+// nhan_tin.h — Nhận bản tin đếm xe {"id":1,"seq":1042,"s":3,"l":1,"emg":0,"ut":0}
+// từ camera qua ESP-NOW. emg: xe ưu tiên ở làn nào (0 không có, 1 làn ngoài, 2 làn trong);
+// ut: loại xe ưu tiên (1 cứu hỏa, 2 quân sự, 3 công an, 4 cứu thương). Bản tin không có "ut" mà
+// emg khác 0 thì coi là xe cứu thương. Hàm gọi lại của ESP-NOW chạy ở luồng WiFi nên chỉ chép gói vào
 // hàng đợi; vòng lặp chính lấy ra và giải mã.
 #pragma once
 #include <WiFi.h>
@@ -16,6 +18,7 @@ struct BanTin {
   int id;
   long seq;       // -1 nếu bản tin không có seq (gõ tay)
   int s, l, emg;
+  int ut;         // loại xe ưu tiên, 0 nếu bản tin không ghi
 };
 
 static QueueHandle_t hang_doi_tin = NULL;
@@ -63,5 +66,6 @@ inline bool giaiMaBanTin(const char *chuoi, BanTin &b) {
   b.s = tai_lieu["s"] | 0;
   b.l = tai_lieu["l"] | 0;
   b.emg = tai_lieu["emg"] | 0;
+  b.ut = tai_lieu["ut"] | 0;
   return b.id >= 1 && b.id <= 4;
 }

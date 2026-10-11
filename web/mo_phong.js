@@ -1,7 +1,7 @@
 // mo_phong.js — Mô phỏng xe chạy trên sa bàn Lần 08 (đơn vị mm, tấm 1000 × 1000).
 // Không đụng tới trang web nên chạy được cả bằng Node (xem kiem_thu/thu_mo_phong.js).
 // Đèn do đúng bộ quyet_dinh.js + dieu_khien.js điều khiển, giống board trung tâm.
-// "Camera" ở đây đếm xe có tâm nằm trong vùng chờ của từng làn và gửi {id, seq, s, l, emg}.
+// "Camera" ở đây đếm xe có tâm nằm trong vùng chờ của từng làn và gửi {id, seq, s, l, emg, ut}.
 (function (goc, tao) {
   if (typeof module === 'object' && module.exports) module.exports = tao(require('./quyet_dinh.js'), require('./dieu_khien.js'));
   else goc.MoPhong = tao(goc.QuyetDinh, goc.DieuKhien);
@@ -21,13 +21,14 @@
   var TAM_CUNG = 295;          // tâm cung nhánh rẽ phải (295, 295), bán kính 80
   var R_VAO = 30;              // bán kính rẽ từ làn bao vào nhánh và ngược lại
 
-  var XE_DAI = 68, XE_RONG = 34;
-  var CACH_XE = 76;            // khoảng cách tâm hai xe khi xếp hàng → vùng chờ chứa đúng 4 xe
-  var SUC_CHUA = 4;            // số xe tối đa mỗi làn trong vùng chờ
+  var XE_DAI = 68, XE_RONG = 34;   // cỡ xe 100 %: xe Hot Wheels trên sa bàn thật (4 xe mỗi làn chờ)
   var DS = 4;                  // bước lấy mẫu đường đi (mm)
-  var R_CHAM = 37;             // hai xe coi là vướng nhau khi hai "đốt" cách nhau dưới mức này
   var NHIN_XA = 150;           // tầm nhìn phía trước của xe (mm)
   var DT_CAMERA = 250;         // camera gửi 4 gói mỗi giây
+
+  // Xe ưu tiên, xếp theo thứ tự ưu tiên "hỏa → sự → công → thương": số nhỏ hơn được đi trước.
+  var TEN_UU_TIEN = ['', 'cứu hỏa', 'quân sự', 'công an', 'cứu thương'];
+  var MAU_UU_TIEN = ['', '#d8281f', '#4d5f3a', '#f2f4f6', '#ffffff'];
 
   var MAU_XE = ['#e23d3d', '#f08a24', '#f2c230', '#3d8fe2', '#2bb3a3', '#8d5bd6', '#e85d9a', '#aab4bf',
                 '#5a6472', '#2f9e55', '#c0392b', '#1f6fb5'];
@@ -144,7 +145,6 @@
   }
 
   var S_VAO_XONG = VAO + Math.PI * R_VAO / 2;                    // hết cung rẽ vào, tâm xe ở y = 62
-  var S_DUNG = S_VAO_XONG + (Y_VACH - 2 - XE_DAI / 2) - (TIM_BAO + R_VAO);   // tâm xe khi mũi xe sát vạch dừng
   var S_TACH = S_VAO_XONG + (215 - (TIM_BAO + R_VAO));           // xe rẽ phải đã rời hẳn làn ngoài
 
   var DUONG = [];   // DUONG[h][tên]
@@ -181,12 +181,13 @@
       ti_le_trai: [0, 25, 25, 25, 25], // % xe rẽ trái
       ti_le_phai: 15,                  // % xe rẽ phải (đi làn riêng, không qua đèn)
       toc_do: 120,                     // mm/s
-      tre_phan_ung: 1000               // ms: xe đang đứng yên thấy đi được (đèn xanh, xe trước đã rời) thì chừng này sau mới lăn bánh
+      tre_phan_ung: 1000,              // ms: xe đang đứng yên thấy đi được (đèn xanh, xe trước đã rời) thì chừng này sau mới lăn bánh
+      co_xe: 75                        // % so với xe Hot Wheels 68 × 34 mm. 75 % là đúng tỉ lệ ô tô thật so với bề rộng làn
     };
   }
 
   function thongKeMoi() {
-    return { so_xe: 0, tong_cho: 0, cho_max: 0, re_phai: 0, cuu_thuong: 0, tong_cuu_thuong: 0 };
+    return { so_xe: 0, tong_cho: 0, cho_max: 0, re_phai: 0, uu_tien: 0, tong_uu_tien: 0 };
   }
 
   function MoPhong(tuy_chon) {
@@ -200,15 +201,29 @@
     this.datLai();
   }
 
+  // Mọi kích thước phụ thuộc cỡ xe. Xe được coi như 3 "đốt" tròn xếp dọc thân để xét vướng nhau.
+  MoPhong.prototype.datCoXe = function () {
+    var k = Math.max(50, Math.min(100, this.cai.co_xe)) / 100;
+    this.xe_dai = XE_DAI * k; this.xe_rong = XE_RONG * k;
+    this.dot = this.xe_dai / 4;                 // khoảng cách giữa các đốt
+    this.r_cham = this.xe_rong + 3;             // hai xe vướng nhau khi hai đốt cách nhau dưới mức này
+    this.cach_xe = this.xe_dai + 8.5;           // khoảng cách tâm hai xe khi xếp hàng (hở chừng 8 mm)
+    // số xe tối đa mỗi làn trong vùng chờ dài 304 mm: 4 xe ở cỡ 100 %, 5 xe ở 75 %, 6 xe ở 60 %
+    this.suc_chua = Math.floor((Y_VACH - MEP_BAO - 2 - this.xe_dai) / this.cach_xe) + 1;
+    this.s_dung = S_VAO_XONG + (Y_VACH - 2 - this.xe_dai / 2) - (TIM_BAO + R_VAO);   // tâm xe khi mũi xe sát vạch dừng
+  };
+
   MoPhong.prototype.datLai = function () {
     var toi = this;
+    this.datCoXe();
     this.t = 0;
     this.xe = [];
     this.id_ke = 1;
     this.hang_cho = [[], [], [], [], []];   // xe đã tới nhưng chưa có chỗ vào sa bàn
     this.ngau_nhien = taoNgauNhien(this.hat);
     this.ngau_nhien_mau = taoNgauNhien(this.hat + 77);
-    this.dem = [null, { s: 0, l: 0, emg: 0, seq: 0 }, { s: 0, l: 0, emg: 0, seq: 0 }, { s: 0, l: 0, emg: 0, seq: 0 }, { s: 0, l: 0, emg: 0, seq: 0 }];
+    this.dem = [null];
+    for (var h = 1; h <= 4; h++) this.dem.push({ s: 0, l: 0, emg: 0, ut: 0, seq: 0 });
     this.t_camera = 0;
     this.thong_ke = [thongKeMoi(), thongKeMoi()];   // [cố định, thích ứng]
     this.so_xe_den = 0;
@@ -235,10 +250,12 @@
     return n;
   };
 
-  MoPhong.prototype.thaXeCuuThuong = function (h) {
-    this.hang_cho[h].unshift({ t_sinh: this.t, huong_di: 'thang', uu_tien: true });
+  // Thả một xe ưu tiên vào hướng h. loai: 1 cứu hỏa, 2 quân sự, 3 công an, 4 cứu thương.
+  MoPhong.prototype.thaXeUuTien = function (h, loai) {
+    this.hang_cho[h].unshift({ t_sinh: this.t, huong_di: 'thang', uu_tien: loai >= 1 && loai <= 4 ? loai : 4 });
     this.so_xe_den++;
   };
+  MoPhong.prototype.thaXeCuuThuong = function (h) { this.thaXeUuTien(h, 4); };
 
   MoPhong.prototype.sinhXe = function (dt) {
     for (var h = 1; h <= 4; h++) {
@@ -247,7 +264,7 @@
       if (r >= this.cai.luu_luong[h] / 60000 * dt) continue;
       var p_phai = this.cai.ti_le_phai / 100, p_trai = this.cai.ti_le_trai[h] / 100;
       var huong_di = r2 < p_phai ? 'phai' : (r2 < p_phai + (1 - p_phai) * p_trai ? 'trai' : 'thang');
-      this.hang_cho[h].push({ t_sinh: this.t, huong_di: huong_di, uu_tien: false });
+      this.hang_cho[h].push({ t_sinh: this.t, huong_di: huong_di, uu_tien: 0 });
       this.so_xe_den++;
     }
   };
@@ -262,16 +279,17 @@
       else if (dau.huong_di === 'phai') { lan = 'ngoai'; ten = 'phai'; }
       else if (n_trong < n_ngoai) { lan = 'trong'; ten = 'thang_trong'; }
       else { lan = 'ngoai'; ten = 'thang_ngoai'; }
-      if ((lan === 'ngoai' ? n_ngoai : n_trong) >= SUC_CHUA) continue;
+      if ((lan === 'ngoai' ? n_ngoai : n_trong) >= this.suc_chua) continue;
       var dd = DUONG[h][ten], trong = true;
       for (var i = 0; i < this.xe.length; i++) {
-        if (Math.hypot(this.xe[i].x - dd.x[0], this.xe[i].y - dd.y[0]) < 95) { trong = false; break; }
+        if (Math.hypot(this.xe[i].x - dd.x[0], this.xe[i].y - dd.y[0]) < this.xe_dai + 27) { trong = false; break; }
       }
       if (!trong) continue;
       q.shift();
       var xe = {
         id: this.id_ke++, h: h, lan: lan, huong_di: dau.huong_di, dd: dd, s: 0, v: this.cai.toc_do * 0.7,
-        uu_tien: dau.uu_tien, mau: dau.uu_tien ? '#ffffff' : MAU_XE[Math.floor(this.ngau_nhien_mau() * MAU_XE.length)],
+        uu_tien: dau.uu_tien || 0,   // 0: xe thường; 1..4: loại xe ưu tiên
+        mau: dau.uu_tien ? MAU_UU_TIEN[dau.uu_tien] : MAU_XE[Math.floor(this.ngau_nhien_mau() * MAU_XE.length)],
         t_sinh: dau.t_sinh, cho: this.t - dau.t_sinh, da_qua: false, di_tiep: false, quyet_vang: false,
         chan: 0, phanh: false, x: dd.x[0], y: dd.y[0], goc: 0, dx: 0, dy: 0,
         he_so_pu: 0.7 + 0.6 * this.ngau_nhien_mau(),   // mỗi người lái nhanh chậm khác nhau: 0,7 đến 1,3 lần mức chung
@@ -295,16 +313,17 @@
   // Khoảng trống phía trước xe a (mm) và tốc độ cho phép vì đường cong sắp tới.
   MoPhong.prototype.nhinTruoc = function (a, gan, ket_qua) {
     var dd = a.dd, v_max = this.cai.toc_do, v_cong = v_max, trong = 1e9, chan = 0;
+    var dot = this.dot, r2 = this.r_cham * this.r_cham;
     for (var d = 0; d <= NHIN_XA; d += 6) {
-      viTri(dd, a.s + 17 + d, tam);
+      viTri(dd, a.s + dot + d, tam);
       var v_cho_phep = Math.sqrt(Math.pow(tam.f * v_max, 2) + 2 * 200 * d);
       if (v_cho_phep < v_cong) v_cong = v_cho_phep;
       if (chan) continue;
       for (var i = 0; i < gan.length; i++) {
         var b = gan[i];
         for (var k = -1; k <= 1; k++) {
-          var ex = b.x + b.dx * 17 * k - tam.x, ey = b.y + b.dy * 17 * k - tam.y;
-          if (ex * ex + ey * ey < R_CHAM * R_CHAM) { trong = d - 10; chan = b.id; break; }   // dừng cách xe trước chừng 8 mm
+          var ex = b.x + b.dx * dot * k - tam.x, ey = b.y + b.dy * dot * k - tam.y;
+          if (ex * ex + ey * ey < r2) { trong = d - 10; chan = b.id; break; }   // dừng cách xe trước chừng 8 mm
         }
         if (chan) break;
       }
@@ -318,7 +337,7 @@
     for (var i = 0; i < this.xe.length; i++) {
       var b = this.xe[i];
       if (b.ra !== a.ra || b.lan_ra !== 'trong') continue;
-      if (b.s > b.dd.s_ra - 95 && b.s < b.dd.s_ra + 47 + 85) return true;
+      if (b.s > b.dd.s_ra - this.xe_dai - 27 && b.s < b.dd.s_ra + 47 + this.xe_dai + 17) return true;
     }
     return false;
   };
@@ -356,7 +375,7 @@
       var trong = kq.trong;
       // đèn: xe đi thẳng theo nhóm thẳng, xe rẽ trái theo nhóm trái; xe rẽ phải không có đèn
       if (a.huong_di !== 'phai' && !a.da_qua) {
-        var mau = dk.mauNhom(a.nhom, this.t), toi_vach = S_DUNG - a.s;
+        var mau = dk.mauNhom(a.nhom, this.t), toi_vach = this.s_dung - a.s;
         if (mau === DieuKhien.MAU_XANH) { a.di_tiep = false; a.quyet_vang = false; }
         else {
           if (mau === DieuKhien.MAU_VANG && !a.quyet_vang) {      // gặp vàng: dừng nếu kịp, không kịp thì đi tiếp
@@ -401,7 +420,7 @@
       a.v = moi[i * 4]; a.s += moi[i * 4 + 1]; a.chan = moi[i * 4 + 2]; a.phanh = moi[i * 4 + 3] === 1;
       this.datViTri(a);
       if (!a.da_qua && a.v < 15) a.cho += dt;
-      if (!a.da_qua && (a.huong_di === 'phai' ? a.s > S_TACH : a.s > S_DUNG + 4)) {
+      if (!a.da_qua && (a.huong_di === 'phai' ? a.s > S_TACH : a.s > this.s_dung + 4)) {
         a.da_qua = true;
         var tk = this.thong_ke[che_do];
         if (a.huong_di === 'phai') tk.re_phai++;
@@ -409,8 +428,8 @@
           tk.so_xe++; tk.tong_cho += a.cho;
           if (a.cho > tk.cho_max) tk.cho_max = a.cho;
           if (a.uu_tien) {
-            tk.cuu_thuong++; tk.tong_cuu_thuong += this.t - a.t_sinh;
-            if (this.khiSuKien) this.khiSuKien('cuu_thuong_qua', { h: a.h, ms: this.t - a.t_sinh }, this);
+            tk.uu_tien++; tk.tong_uu_tien += this.t - a.t_sinh;
+            if (this.khiSuKien) this.khiSuKien('uu_tien_qua', { h: a.h, ms: this.t - a.t_sinh, loai: a.uu_tien }, this);
           }
         }
       }
@@ -425,15 +444,16 @@
   MoPhong.prototype.guiCamera = function () {
     this.t_camera = this.t;
     for (var h = 1; h <= 4; h++) {
-      var d = this.dem[h], s = 0, l = 0, emg = 0;
+      var d = this.dem[h], s = 0, l = 0, emg = 0, ut = 0;
       for (var i = 0; i < this.xe.length; i++) {
         var lan = MoPhong.lanCuaDiem(this.xe[i].x, this.xe[i].y, h);
         if (!lan) continue;
         if (lan === 'ngoai') s++; else l++;
-        if (this.xe[i].uu_tien) emg = lan === 'ngoai' ? 1 : 2;
+        var loai = this.xe[i].uu_tien;                   // có nhiều xe ưu tiên thì báo xe hạng cao nhất
+        if (loai && (ut === 0 || loai < ut)) { ut = loai; emg = lan === 'ngoai' ? 1 : 2; }
       }
-      d.s = s; d.l = l; d.emg = emg; d.seq++;
-      this.dk.nhanDem(h, s, l, emg, this.t, false);
+      d.s = s; d.l = l; d.emg = emg; d.ut = ut; d.seq++;
+      this.dk.nhanDem(h, s, l, emg, this.t, false, ut);
     }
   };
 
@@ -448,7 +468,7 @@
 
   MoPhong.prototype.jsonCamera = function (h) {
     var d = this.dem[h];
-    return '{"id":' + h + ',"seq":' + d.seq + ',"s":' + d.s + ',"l":' + d.l + ',"emg":' + d.emg + '}';
+    return '{"id":' + h + ',"seq":' + d.seq + ',"s":' + d.s + ',"l":' + d.l + ',"emg":' + d.emg + ',"ut":' + d.ut + '}';
   };
 
   // Tổng hợp: thời gian chờ trung bình tính trên MỌI xe đã tới (kể cả xe còn kẹt), để chế độ nào
@@ -474,9 +494,11 @@
   };
 
   // Chạy nhanh không vẽ: cùng một dòng xe cho hai chế độ đèn, trả về số liệu để so sánh.
-  MoPhong.soSanh = function (cai, ts, phut, hat) {
+  // chi_che_do (0 hoặc 1, không bắt buộc): chỉ chạy chế độ đó, ô của chế độ kia để null.
+  MoPhong.soSanh = function (cai, ts, phut, hat, chi_che_do) {
     var ket_qua = [];
     for (var che_do = 0; che_do <= 1; che_do++) {
+      if (chi_che_do === 0 || chi_che_do === 1) { if (che_do !== chi_che_do) { ket_qua.push(null); continue; } }
       var ts2 = {}, k;
       for (k in ts) ts2[k] = ts[k];
       ts2.che_do = che_do;
@@ -493,7 +515,8 @@
   MoPhong.quayNguoc = quayNguoc;
   MoPhong.HINH = {
     C: C, LAN: LAN, MEP: MEP, X_NGOAI: X_NGOAI, X_TRONG: X_TRONG, Y_VACH: Y_VACH, MEP_BAO: MEP_BAO,
-    XE_DAI: XE_DAI, XE_RONG: XE_RONG, CACH_XE: CACH_XE, VUNG: VUNG, DUONG: DUONG, S_DUNG: S_DUNG
+    XE_DAI: XE_DAI, XE_RONG: XE_RONG, VUNG: VUNG, DUONG: DUONG
   };
+  MoPhong.TEN_UU_TIEN = TEN_UU_TIEN;
   return MoPhong;
 });

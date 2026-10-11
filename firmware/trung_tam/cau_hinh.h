@@ -40,6 +40,18 @@ static const uint8_t CHAN_DEN[8][3] = {
 #define CD_TRAI 15000           // chế độ cố định: xanh rẽ trái
 #define MAT_TIN_HIEU 3000       // camera im quá lâu thì trục đó chạy thời gian cố định từ chu kì sau
 #define UT_XANH_AN_TOAN 5000    // bước đang chạy phải xanh ít nhất chừng này mới bị cắt để ưu tiên
-#define UT_GIU 5000             // giữ xanh thêm sau khi không còn thấy xe ưu tiên
+#define UT_GIU 1000             // xe ưu tiên qua rồi (không còn thấy quá chừng này) là chuyển vàng ngay, không giữ xanh thêm
 #define UT_TOI_DA 60000         // ưu tiên tự hủy sau thời gian này
 #define CAT_SOM 5000            // chế độ thích ứng: tổ hợp đang xanh hết xe quá 5 s mà hướng khác có xe chờ thì cắt xanh sớm (0: tắt)
+
+// ---------- Kiểu chia pha của chế độ thích ứng (giải thích ở quyet_dinh.h) ----------
+// KIEU_RIENG        riêng từng hướng (mặc định trên sa bàn)
+// KIEU_THANG_TRUOC  hai hướng cùng đi thẳng trước, rồi mở riêng cho làn trong còn xe
+// KIEU_DOI_XUNG     cùng đi thẳng rồi cùng rẽ trái
+// KIEU_TU_HOC       tự chạy thử "riêng" và "thẳng trước" rồi giữ kiểu chờ ít hơn cho từng trục.
+//                   Tự học cần dòng xe chạy thật và camera đếm ổn định trong nhiều phút; trên sa bàn
+//                   xe đặt bằng tay thì nên để KIEU_RIENG và đổi bằng lệnh "kieu" ở Serial khi cần.
+#define KIEU_PHA KIEU_RIENG
+#define HOC_SO_CHU_KI 3         // tự học: mỗi lần đo hoặc thử dài ít nhất 3 vòng (một vòng = lượt dọc + lượt ngang)...
+#define HOC_SO_XE 30            // ... và phải có ít nhất 30 xe đi qua
+#define HOC_NGUONG 10           // tự học: kiểu thử phải chờ ít hơn ít nhất 10 % mới được chọn

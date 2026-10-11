@@ -1,4 +1,6 @@
-// quyet_dinh.h — Bộ lập kế hoạch đèn cho MỘT chu kì (mức 1: bộ luật).
+// quyet_dinh.h — Bộ lập kế hoạch đèn (mức 1: bộ luật). Chế độ cố định lập cả chu kì 4 bước;
+// chế độ thích ứng lập cho từng LƯỢT: mỗi lượt là phần của một trục (dọc hoặc ngang), chốt theo
+// số đếm ngay lúc lượt đó bắt đầu, hết lượt thì tới trục kia.
 // Không dùng hàm nào của Arduino nên biên dịch được cả trên máy tính (xem kiem_thu/).
 // Bản JavaScript tương ứng: web/quyet_dinh.js. Sửa luật ở bản này thì sửa cả bản kia.
 // Mọi thời gian tính bằng mili giây.
@@ -8,6 +10,20 @@
 #define CHE_DO_CO_DINH 0
 #define CHE_DO_THICH_UNG 1
 #define SO_BUOC_TOI_DA 4
+
+// Kiểu chia pha của một trục khi cả hai hướng đều có xe và làn trong có xe:
+//   RIENG        riêng từng hướng: mỗi hướng được xanh cả thẳng lẫn trái, hướng này xong tới hướng kia.
+//                Không bao giờ kẹt vì xe rẽ trái, nhưng hai hướng không được đi cùng lúc.
+//   THANG_TRUOC  hai hướng cùng đi thẳng trước; hai làn ngoài hết xe là chuyển sang mở riêng từng
+//                hướng cho làn trong còn xe. Lợi khi ít xe rẽ trái, thiệt khi nhiều.
+//   DOI_XUNG     hai hướng cùng đi thẳng, rồi cùng rẽ trái. Vì làn trong đi chung thẳng và trái
+//                nên xe hai loại dễ chặn nhau; chỉ hợp khi gần như không có xe rẽ trái.
+//   TU_HOC       bộ điều khiển chạy thử RIENG và THANG_TRUOC, đo thời gian chờ rồi giữ kiểu tốt hơn
+//                cho từng trục (xem dieu_khien.h)
+#define KIEU_TU_HOC 0
+#define KIEU_RIENG 1
+#define KIEU_THANG_TRUOC 2
+#define KIEU_DOI_XUNG 3
 
 struct ThamSo {
   uint8_t che_do;
@@ -21,13 +37,19 @@ struct ThamSo {
   uint32_t cd_trai;          // chế độ cố định: xanh rẽ trái
   uint32_t mat_tin_hieu;     // quá lâu không có tin thì coi camera mất tín hiệu
   uint32_t ut_xanh_an_toan;  // bước đang chạy phải xanh ít nhất chừng này mới bị cắt để ưu tiên
-  uint32_t ut_giu;           // giữ xanh thêm sau khi không còn thấy xe ưu tiên
+  uint32_t ut_giu;           // xe ưu tiên qua rồi (không còn thấy quá chừng này) là chuyển vàng ngay
   uint32_t ut_toi_da;        // ưu tiên tự hủy sau thời gian này
   uint32_t cat_som;          // chế độ thích ứng: tổ hợp đang xanh không còn xe quá lâu thế này thì cắt xanh sớm (0: tắt)
+  uint32_t kieu_pha;         // kiểu chia pha của chế độ thích ứng: KIEU_TU_HOC, KIEU_RIENG, KIEU_THANG_TRUOC hoặc KIEU_DOI_XUNG
+  uint32_t hoc_so_chu_ki;    // tự học: mỗi lần đo hoặc thử kéo dài ít nhất bấy nhiêu vòng (một vòng = lượt dọc + lượt ngang)...
+  uint32_t hoc_so_xe;        // ... và phải có ít nhất bấy nhiêu xe đi qua
+  uint32_t hoc_nguong;       // tự học: kiểu thử phải hơn kiểu đang giữ ít nhất bấy nhiêu % mới được chọn
 };
 
 struct Buoc {
   uint8_t mat_na;            // các nhóm được xanh trong bước
+  uint8_t ngoai;             // 1: bước "cùng đi thẳng" có bước mở riêng theo sau, nên khi xét cắt xanh sớm
+                             //    chỉ tính xe ở hai làn ngoài (xe làn trong còn lại do bước mở riêng lo)
   uint32_t xanh;             // thời gian xanh
 };
 
@@ -69,9 +91,10 @@ inline uint32_t thoiGianXanh(const ThamSo &ts, uint32_t n) {
   return t;
 }
 
-inline void themBuoc(KeHoach &kh, uint8_t mat_na, uint32_t xanh) {
+inline void themBuoc(KeHoach &kh, uint8_t mat_na, uint32_t xanh, bool ngoai = false) {
   if (kh.so_buoc >= SO_BUOC_TOI_DA) return;
   kh.buoc[kh.so_buoc].mat_na = mat_na;
+  kh.buoc[kh.so_buoc].ngoai = ngoai ? 1 : 0;
   kh.buoc[kh.so_buoc].xanh = xanh;
   kh.so_buoc++;
 }
@@ -79,7 +102,7 @@ inline void themBuoc(KeHoach &kh, uint8_t mat_na, uint32_t xanh) {
 // Kế hoạch cho một trục (a và b là hai hướng đối diện).
 // s[h]: xe ở làn ngoài (chỉ đi thẳng); l[h]: xe ở làn trong (đi thẳng hoặc rẽ trái).
 inline void keHoachTruc(const ThamSo &ts, KeHoach &kh, int a, int b,
-                        const uint8_t s[5], const uint8_t l[5], const bool hop_le[5]) {
+                        const uint8_t s[5], const uint8_t l[5], const bool hop_le[5], uint8_t kieu) {
   if (!hop_le[a] || !hop_le[b]) {           // camera mất tín hiệu: trục này chạy thời gian cố định
     themBuoc(kh, matNaThang(a, b), ts.cd_thang);
     themBuoc(kh, matNaTrai(a, b), ts.cd_trai);
@@ -94,30 +117,32 @@ inline void keHoachTruc(const ThamSo &ts, KeHoach &kh, int a, int b,
     themBuoc(kh, matNaThang(a, b), thoiGianXanh(ts, max2(sa, sb)));
     return;
   }
-  // Phương án 1: thẳng cả hai, rồi rẽ trái có bảo vệ cho hướng nào có xe ở làn trong
-  uint32_t t1 = thoiGianXanh(ts, max2(max2(sa, la), max2(sb, lb)));
-  uint8_t m2;
-  uint32_t t2;
-  if (la > 0 && lb > 0) { m2 = matNaTrai(a, b); t2 = thoiGianXanh(ts, max2(la, lb)); }
-  else if (la > 0) { m2 = matNaRieng(a); t2 = thoiGianXanh(ts, la); }
-  else { m2 = matNaRieng(b); t2 = thoiGianXanh(ts, lb); }
-  // Phương án 2: riêng từng hướng, hướng đông đi trước
-  uint32_t ta = thoiGianXanh(ts, max2(sa, la)), tb = thoiGianXanh(ts, max2(sb, lb));
-  // Chọn phương án tốn ít thời gian hơn. Bằng nhau mà cả hai làn trong đều có xe thì chọn
-  // riêng từng hướng: làn trong đi chung thẳng và trái, xe đi thẳng và xe rẽ trái dễ chặn nhau
-  // nếu hai loại không được xanh cùng lúc.
-  bool chon_rieng = ta + tb < t1 + t2 || (ta + tb == t1 + t2 && la > 0 && lb > 0);
-  if (chon_rieng) {
+  if (kieu == KIEU_DOI_XUNG) {               // cùng đi thẳng, rồi rẽ trái cho hướng có xe ở làn trong
+    themBuoc(kh, matNaThang(a, b), thoiGianXanh(ts, max2(max2(sa, la), max2(sb, lb))));
+    if (la > 0 && lb > 0) themBuoc(kh, matNaTrai(a, b), thoiGianXanh(ts, max2(la, lb)));
+    else if (la > 0) themBuoc(kh, matNaRieng(a), thoiGianXanh(ts, la));
+    else themBuoc(kh, matNaRieng(b), thoiGianXanh(ts, lb));
+  } else if (kieu == KIEU_THANG_TRUOC) {     // cùng đi thẳng trước, rồi mở riêng cho làn trong còn xe
+    int x = la >= lb ? a : b, y = la >= lb ? b : a;      // làn trong đông hơn được mở trước
+    themBuoc(kh, matNaThang(a, b), thoiGianXanh(ts, max2(sa, sb)), true);
+    if (l[x] > 0) themBuoc(kh, matNaRieng(x), thoiGianXanh(ts, l[x]));
+    if (l[y] > 0) themBuoc(kh, matNaRieng(y), thoiGianXanh(ts, l[y]));
+  } else {                                   // riêng từng hướng, hướng đông đi trước
+    uint32_t ta = thoiGianXanh(ts, max2(sa, la)), tb = thoiGianXanh(ts, max2(sb, lb));
     if (na >= nb) { themBuoc(kh, matNaRieng(a), ta); themBuoc(kh, matNaRieng(b), tb); }
     else { themBuoc(kh, matNaRieng(b), tb); themBuoc(kh, matNaRieng(a), ta); }
-  } else {
-    themBuoc(kh, matNaThang(a, b), t1);
-    themBuoc(kh, m2, t2);
   }
 }
 
+// Trục của một tổ hợp: 0 nếu có nhóm của Hướng 1 hoặc 3 (trục dọc), 1 nếu là trục ngang.
+inline uint8_t trucCuaMatNa(uint8_t m) { return (m & 0x33) ? 0 : 1; }
+
 // Đầu vào: s, l, hop_le là mảng 5 phần tử, dùng chỉ số 1..4 theo số hướng.
-inline KeHoach lapKeHoach(const ThamSo &ts, const uint8_t s[5], const uint8_t l[5], const bool hop_le[5]) {
+//   kieu: {kiểu chia pha trục dọc, kiểu chia pha trục ngang}, mỗi cái là KIEU_RIENG, KIEU_THANG_TRUOC hoặc KIEU_DOI_XUNG
+//   truc: trục tới lượt (0 dọc, 1 ngang). Trục đó không có xe thì lập luôn cho trục kia.
+// Đầu ra: tối đa 4 bước. Chế độ thích ứng: 1 đến 3 bước của một trục.
+inline KeHoach lapKeHoach(const ThamSo &ts, const uint8_t s[5], const uint8_t l[5], const bool hop_le[5],
+                          const uint8_t kieu[2], uint8_t truc) {
   KeHoach kh;
   kh.so_buoc = 0;
   if (ts.che_do == CHE_DO_CO_DINH) {        // thứ tự cố định, dùng để đối chứng
@@ -127,11 +152,14 @@ inline KeHoach lapKeHoach(const ThamSo &ts, const uint8_t s[5], const uint8_t l[
     themBuoc(kh, matNaThang(1, 3), ts.cd_thang);
     return kh;
   }
-  keHoachTruc(ts, kh, 1, 3, s, l, hop_le);  // trục dọc
-  keHoachTruc(ts, kh, 2, 4, s, l, hop_le);  // trục ngang
-  if (kh.so_buoc == 0) {                    // cả ngã tư trống: luân phiên hai trục ở Tmin
-    themBuoc(kh, matNaThang(1, 3), ts.t_min);
-    themBuoc(kh, matNaThang(2, 4), ts.t_min);
+  if (truc == 1) {
+    keHoachTruc(ts, kh, 2, 4, s, l, hop_le, kieu[1]);
+    if (kh.so_buoc == 0) keHoachTruc(ts, kh, 1, 3, s, l, hop_le, kieu[0]);
+    if (kh.so_buoc == 0) themBuoc(kh, matNaThang(2, 4), ts.t_min);   // cả ngã tư trống: trục tới lượt xanh Tmin
+  } else {
+    keHoachTruc(ts, kh, 1, 3, s, l, hop_le, kieu[0]);
+    if (kh.so_buoc == 0) keHoachTruc(ts, kh, 2, 4, s, l, hop_le, kieu[1]);
+    if (kh.so_buoc == 0) themBuoc(kh, matNaThang(1, 3), ts.t_min);
   }
   return kh;
 }
