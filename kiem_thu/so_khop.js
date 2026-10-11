@@ -27,7 +27,7 @@ function taoNgauNhien(hat) {
 
 const TEN_TS = ['che_do', 't_min', 't_max', 'cong_them', 'xe_quy_doi', 't_vang', 't_do', 'cd_thang', 'cd_trai',
                 'mat_tin_hieu', 'ut_xanh_an_toan', 'ut_giu', 'ut_toi_da', 'cat_som',
-                'kieu_pha', 'hoc_so_chu_ki', 'hoc_so_xe', 'hoc_nguong'];
+                'kieu_pha', 'hoc_cach_thu', 'hoc_so_xe', 'hoc_nguong'];
 
 // ---- sinh kịch bản ----
 const r = taoNgauNhien(20261011);
@@ -39,13 +39,13 @@ function thamSoNgauNhien() {
           ng(10, 40) * 1000, ng(5, 30) * 1000, 3000, ng(0, 8) * 1000, ng(0, 8) * 500, ng(20, 70) * 1000,
           r() < 0.3 ? 0 : ng(2, 10) * 1000,
           // kiểu chia pha (một nửa số lần là tự học), và tham số tự học nhỏ để bộ học quyết định thường xuyên
-          r() < 0.5 ? 0 : ng(1, 4), ng(0, 3), ng(0, 6), ng(0, 30)];
+          r() < 0.5 ? 0 : ng(1, 4), ng(0, 4), ng(0, 6), ng(0, 30)];
 }
 for (let lan = 0; lan < 250; lan++) {
-  // Cứ 3 kịch bản thì 1 cái dành cho bộ tự học: chế độ thích ứng, kiểu tự học, không có xe ưu tiên,
-  // camera không mất tín hiệu, số đếm đổi thường xuyên. Các kịch bản còn lại trộn đủ thứ.
-  const de_hoc = lan % 3 === 1;
-  const tsMoi = () => { const v = thamSoNgauNhien(); if (de_hoc) { v[0] = 1; v[14] = 0; v[15] = ng(1, 2); } return v; };
+  // Cứ 3 kịch bản thì 1 cái dành cho bộ tự học: chế độ thích ứng, kiểu tự học, số đếm đổi thường xuyên,
+  // xe ưu tiên và camera mất tín hiệu thì hiếm (một nửa số kịch bản này không có). Các kịch bản còn lại trộn đủ thứ.
+  const de_hoc = lan % 3 === 1, hiem = de_hoc ? (lan % 2 === 0 ? 0.1 : 0) : 1;
+  const tsMoi = () => { const v = thamSoNgauNhien(); if (de_hoc) { v[0] = 1; v[14] = 0; v[15] = ng(1, 3); v[16] = ng(1, 3); } return v; };
   lenh.push('TS ' + tsMoi().join(' '));
   for (let i = 0; i < 40; i++) {              // bộ lập kế hoạch
     const v = [];
@@ -62,8 +62,8 @@ for (let lan = 0; lan < 250; lan++) {
   for (let i = 0; i < 3000; i++) {
     t += ng(10, 500);
     for (let h = 1; h <= 4; h++) {
-      if (!de_hoc && r() < 0.004) im_toi[h] = t + ng(1, 15) * 1000;
-      if (!de_hoc && r() < 0.003) emg_toi[h] = t + ng(1, 80) * 1000;
+      if (r() < 0.004 * hiem) im_toi[h] = t + ng(1, 15) * 1000;
+      if (r() < 0.003 * hiem) emg_toi[h] = t + ng(1, 80) * 1000;
       if (t < im_toi[h] || r() < 0.3) continue;
       if (r() < (de_hoc ? 0.15 : 0.04)) { cs[h] = ng(0, 5) * (r() < 0.5 ? 1 : 0); cl[h] = ng(0, 5) * (r() < 0.4 ? 1 : 0); }
       // xe ưu tiên: loại xe giữ nguyên trong một đợt; đôi khi gửi kiểu cũ (chỉ có emg) hoặc chỉ có ut
@@ -109,7 +109,9 @@ const ra_js = [], dem_sk = {};   // dem_sk: số lần mỗi loại sự kiện 
       for (let g = 0; g < 8; g++) mau.push(dk.mauNhom(g, v[0]));
       const hc = dk.hoc;
       ra_js.push(['T', v[0], dk.pha, dk.xanh, dk.vang, dk.i_buoc, dk.chu_ki, dk.ut_huong, dk.loi ? 1 : 0, dk.conLai(t)].concat(mau).join(' ') +
-        ' | ' + [dk.truc_ke, hc.kieu[0], hc.kieu[1], hc.dang_thu ? 1 : 0, hc.truc_thu, hc.diem_giu, hc.luot, hc.so_ck].join(' '));
+        ' | ' + [dk.truc_ke].concat(
+          [0, 1].map(k => [hc.kieu[k], hc.b[k], hc.q[k], hc.dem[k], hc.cach[k], hc.lien[k], hc.tuoi[k], hc.ra[k]].join(' ')),
+          [hc.l_truc, hc.l_kieu, hc.l_do ? 1 : 0, hc.l_thu ? 1 : 0, hc.l_hong ? 1 : 0, hc.l_qt ? 1 : 0, hc.l_g, hc.l_n]).join(' '));
     }
   }
 }
@@ -128,7 +130,7 @@ for (let i = 0; i < n && khac < 10; i++) {
 }
 console.log('Đã so ' + n + ' dòng kết quả (' + lenh.length + ' lệnh).');
 console.log('Kịch bản có: ' + (dem_sk.chu_ki || 0) + ' lần chốt kế hoạch, ' + (dem_sk.cat_som || 0) + ' lần cắt xanh sớm, ' +
-  (dem_sk.uu_tien || 0) + ' lần ưu tiên; tự học: ' + (dem_sk.hoc_thu || 0) + ' lần thử, ' + (dem_sk.hoc_nhan || 0) + ' lần giữ kiểu mới, ' +
-  (dem_sk.hoc_tra || 0) + ' lần trả về, ' + (dem_sk.hoc_huy || 0) + ' lần hủy.');
+  (dem_sk.uu_tien || 0) + ' lần ưu tiên; tự học: ' + (dem_sk.hoc_thu || 0) + ' lượt chạy kiểu khác, ' + (dem_sk.hoc_nhan || 0) + ' lần đổi kiểu, ' +
+  (dem_sk.hoc_tra || 0) + ' lần thử không đạt, ' + (dem_sk.hoc_huy || 0) + ' lần hủy.');
 console.log(khac === 0 ? 'ĐẠT: bản C++ và bản JavaScript giống nhau hoàn toàn.' : 'KHÔNG ĐẠT.');
 process.exit(khac === 0 ? 0 : 1);

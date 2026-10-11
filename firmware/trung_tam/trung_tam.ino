@@ -18,7 +18,7 @@
 ThamSo ts = {
   CHE_DO_BAN_DAU, T_MIN, T_MAX, CONG_THEM, XE_QUY_DOI, T_VANG, T_DO_TOAN_PHAN,
   CD_THANG, CD_TRAI, MAT_TIN_HIEU, UT_XANH_AN_TOAN, UT_GIU, UT_TOI_DA, CAT_SOM,
-  KIEU_PHA, HOC_SO_CHU_KI, HOC_SO_XE, HOC_NGUONG
+  KIEU_PHA, HOC_CACH_THU, HOC_SO_XE, HOC_NGUONG
 };
 DieuKhien dk(&ts);
 
@@ -55,13 +55,6 @@ const char *tenXeUuTien(uint8_t ut) {
 
 const char *tenTruc(uint8_t truc) {
   return truc ? "trục ngang" : "trục dọc";
-}
-
-// Kiểu chia pha đang dùng cho từng trục, ví dụ "dọc riêng từng hướng, ngang thẳng trước"
-void inKieuDangDung() {
-  uint8_t k[2];
-  dk.kieuChoChuKi(k);
-  Serial.printf("dọc %s, ngang %s", tenKieu(k[0]), tenKieu(k[1]));
 }
 
 void inThoiGian() {
@@ -121,19 +114,18 @@ void khiSuKien(uint8_t loai, uint8_t dl) {
       Serial.printf(" quá %lu s: cắt xanh sớm\n", (unsigned long)(ts.cat_som / 1000));
       break;
     case SK_HOC_THU:
-      Serial.printf("Tự học: thử kiểu \"%s\" cho %s. Thời gian chờ đang đo được: %.1f s mỗi xe\n", tenKieu(dl % 4), tenTruc(dl / 4),
-                    dk.hoc.diem_giu / 1000.0);
+      Serial.printf("Tự học: lượt này %s chạy thử kiểu \"%s\"\n", tenTruc(dl / 4), tenKieu(dl % 4));
       break;
     case SK_HOC_NHAN:
-      Serial.printf("Tự học: giữ kiểu \"%s\" cho %s (chờ %.1f s mỗi xe, ít hơn kiểu cũ)\n", tenKieu(dl % 4), tenTruc(dl / 4),
-                    dk.hoc.diem_thu / 1000.0);
+      Serial.printf("Tự học: %s đổi sang kiểu \"%s\" (thẳng trước đang cần %ld %% thời gian đèn của kiểu riêng)\n", tenTruc(dl / 4),
+                    tenKieu(dl % 4), (long)dk.hoc.q[dl / 4]);
       break;
     case SK_HOC_TRA:
-      Serial.printf("Tự học: kiểu \"%s\" không hơn (chờ %.1f s so với %.1f s mỗi xe), %s trả về kiểu cũ\n", tenKieu(dl % 4),
-                    dk.hoc.diem_thu / 1000.0, dk.hoc.diem_giu / 1000.0, tenTruc(dl / 4));
+      Serial.printf("Tự học: lượt thử \"thẳng trước\" ở %s cần %ld %% thời gian đèn của kiểu riêng, vẫn giữ \"riêng\"\n", tenTruc(dl / 4),
+                    (long)dk.hoc.q[dl / 4]);
       break;
     case SK_HOC_HUY:
-      Serial.printf("Tự học: bỏ lần thử ở %s vì có xe ưu tiên hoặc thiếu camera\n", tenTruc(dl));
+      Serial.printf("Tự học: bỏ lượt thử ở %s vì có xe ưu tiên hoặc thiếu camera\n", tenTruc(dl));
       break;
     case SK_LOI:
       Serial.println("LỖI AN TOÀN: tổ hợp đèn xung đột. Tất cả nháy vàng. Bấm RST để chạy lại.");
@@ -155,11 +147,11 @@ void inTrangThai() {
   if (ts.che_do == CHE_DO_THICH_UNG) {
     Serial.printf("  Kiểu chia pha: %s", tenKieu(ts.kieu_pha));
     if (ts.kieu_pha == KIEU_TU_HOC) {
-      Serial.print(" (đang dùng: ");
-      inKieuDangDung();
-      if (dk.hoc.dang_thu) Serial.printf("; đang thử ở %s", tenTruc(dk.hoc.truc_thu));
-      if (dk.hoc.diem_giu >= 0) Serial.printf("; chờ %.1f s mỗi xe", dk.hoc.diem_giu / 1000.0);
-      Serial.printf("; cửa sổ đo: %lu lượt, %lu xe qua)", (unsigned long)dk.hoc.so_ck, (unsigned long)(dk.hoc.luot / 2));
+      Serial.printf(" (đang giữ: dọc %s, ngang %s", tenKieu(dk.hoc.kieu[0]), tenKieu(dk.hoc.kieu[1]));
+      for (int k = 0; k < 2; k++)
+        if (dk.hoc.q[k] >= 0) Serial.printf("; thẳng trước ở %s cần %ld %% thời gian đèn của kiểu riêng", tenTruc(k), (long)dk.hoc.q[k]);
+      if (dk.hoc.b[0] >= 0) Serial.printf("; kiểu riêng: %.1f s xanh mỗi xe", dk.hoc.b[0] / 1000.0);
+      Serial.print(")");
     }
     Serial.println();
   }
@@ -235,8 +227,8 @@ void xuLyLenh(char *dong) {
     else { Serial.println("Gõ: kieu rieng, kieu thangtruoc, kieu doixung hoặc kieu tuhoc."); return; }
     Serial.printf("Kiểu chia pha: %s, từ lượt sau.", tenKieu(ts.kieu_pha));
     if (ts.kieu_pha == KIEU_TU_HOC)
-      Serial.printf(" Mỗi lần đo dài ít nhất %lu vòng và %lu xe; bắt đầu từ kiểu riêng từng hướng.",
-                    (unsigned long)ts.hoc_so_chu_ki, (unsigned long)ts.hoc_so_xe);
+      Serial.printf(" Bắt đầu từ kiểu riêng từng hướng; cứ %lu lượt của một trục thì thử \"thẳng trước\" một lượt.",
+                    (unsigned long)ts.hoc_cach_thu);
     if (ts.che_do != CHE_DO_THICH_UNG) Serial.print(" (Chỉ có tác dụng ở chế độ thích ứng.)");
     Serial.println();
   }

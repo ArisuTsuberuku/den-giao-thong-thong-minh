@@ -221,24 +221,77 @@ const ut = (kq, loai) => kq.sk.filter(x => x[1] === loai);
   ts.kieu_pha = QD.KIEU_DOI_XUNG; kiem(dk.kieuChoChuKi().join() === '3,3', 'chọn tay đối xứng');
   ts.kieu_pha = 99; kiem(dk.kieuChoChuKi().join() === '1,1', 'giá trị lạ thì dùng riêng từng hướng');
   ts.kieu_pha = QD.KIEU_TU_HOC; kiem(dk.kieuChoChuKi().join() === '1,1', 'tự học bắt đầu từ riêng từng hướng');
-  dk.hoc.dang_thu = true; dk.hoc.truc_thu = 1;
-  kiem(dk.kieuChoChuKi().join() === '1,2', 'đang thử trục ngang thì trục ngang dùng kiểu thẳng trước');
+  dk.hoc.b[0] = 1200; dk.hoc.dem[1] = dk.hoc.cach[1];
+  kiem(dk.kieuChoChuKi().join() === '1,2', 'tới lượt thử của trục ngang thì trục ngang chạy kiểu thẳng trước');
+  dk.hoc.kieu[0] = QD.KIEU_THANG_TRUOC; dk.hoc.q[0] = 95; dk.hoc.tuoi[0] = ts.hoc_cach_thu;
+  kiem(dk.kieuChoChuKi()[0] === QD.KIEU_RIENG, 'đang giữ thẳng trước, điểm gần 100: cách hoc_cach_thu lượt phải chạy một lượt riêng để làm mới mốc');
+  dk.hoc.q[0] = 60;
+  kiem(dk.kieuChoChuKi()[0] === QD.KIEU_THANG_TRUOC, 'điểm đã thấp rõ thì thưa hơn: chưa tới lượt làm mới mốc');
+  ts.hoc_cach_thu = 0;
+  kiem(dk.kieuChoChuKi().join() === '2,1', 'hoc_cach_thu = 0 là tắt tự học: giữ nguyên kiểu đang có, không thử');
 }
 {
   // Xe đứng yên (số đếm không đổi) thì không có xe nào qua: bộ tự học không được kết luận gì.
   const ts = QD.thamSoMacDinh();
   const kq = chay(ts, () => [[2, 1], [2, 1], [2, 1], [2, 1]], 900);
-  kiem(kq.sk.filter(x => x[1].indexOf('hoc') === 0).length === 0 && kq.dk.hoc.diem_giu === -1, 'không có xe qua thì không thử, không có điểm');
+  kiem(kq.sk.filter(x => x[1].indexOf('hoc') === 0).length === 0 && kq.dk.hoc.b.join() === '-1,-1' && kq.dk.hoc.kieu.join() === '1,1',
+    'không có xe qua thì không có mốc, không thử, không đổi kiểu');
 }
 {
-  // Có xe ưu tiên trong lúc đo: cửa sổ đó bị bỏ.
+  // Có xe ưu tiên giữa lượt: lượt đó bị đánh dấu hỏng, không được tính.
   const ts = QD.thamSoMacDinh(), dk = new DieuKhien(ts);
   dk.khoiDong(0);
   for (let t = 0; t <= 60000; t += 100) {
     for (let h = 1; h <= 4; h++) dk.nhanDem(h, (t / 1000 | 0) % 3, 0, 0, t, false, h === 1 && t > 30000 && t < 55000 ? 4 : 0);
     dk.capNhat(t);
-    if (t === 50000) kiem(dk.ut_huong === 1 && dk.hoc.hong, 'đang có xe ưu tiên thì cửa sổ đo phải bị đánh dấu hỏng');
+    if (t === 50000) kiem(dk.ut_huong === 1 && dk.hoc.l_hong, 'đang có xe ưu tiên thì lượt đang đo phải bị đánh dấu hỏng');
   }
+}
+{
+  // Ngã tư thu nhỏ để thử riêng bộ tự học: mỗi làn là một hàng xe, đèn xanh thì cứ 2 s một xe qua vạch.
+  // Xe ở làn trong là 'T' (đi thẳng) hoặc 'L' (rẽ trái); xe đứng đầu làn trong chỉ đi khi đèn của nó xanh,
+  // nên xe rẽ trái chặn xe đi thẳng phía sau khi chỉ có đèn thẳng xanh. Camera thấy tối đa 5 xe đầu mỗi làn.
+  function nga_tu(phut, tiLeTrai) {            // tiLeTrai(t): cứ bao nhiêu xe làn trong thì có một xe rẽ trái (0: không có)
+    const ts = QD.thamSoMacDinh(), dk = new DieuKhien(ts), sk = [];
+    dk.khiSuKien = (loai, dl) => { if (loai.indexOf('hoc') === 0) sk.push([dk.t_gan, loai, dl]); };
+    const ngoai = [0, 0, 0, 0, 0], trong = [[], [], [], [], []], ke = [0, 0, 0, 0, 0, 0, 0, 0, 0], den_luot = [0, 0, 0, 0, 0];
+    const lich = [];                           // [phút, kiểu trục dọc, kiểu trục ngang]
+    dk.khoiDong(0);
+    for (let t = 0; t <= phut * 60000; t += 100) {
+      dk.t_gan = Math.round(t / 6000) / 10;
+      for (let h = 1; h <= 4; h++) {
+        if (t % 15000 === (h - 1) * 1000) {    // mỗi hướng 8 xe/phút, chia đều hai làn
+          ngoai[h]++;
+          const n = tiLeTrai(t);
+          trong[h].push(n > 0 && ++den_luot[h] % n === 0 ? 'L' : 'T');
+        }
+        const i = (h - 1) * 2;
+        if (ngoai[h] > 0 && (dk.xanh & QD.bitThang(h)) && t >= ke[i]) { ngoai[h]--; ke[i] = t + 2000; }
+        if (!(dk.xanh & QD.bitThang(h))) ke[i] = t + 1500;                  // đèn chưa xanh: xe đầu còn trễ phản ứng
+        const dau = trong[h][0];
+        const di_duoc = dau && (dk.xanh & (dau === 'L' ? QD.bitTrai(h) : QD.bitThang(h)));
+        if (di_duoc && t >= ke[i + 1]) { trong[h].shift(); ke[i + 1] = t + 2000; }
+        if (!di_duoc) ke[i + 1] = t + 1500;
+        if (t % 300 === 0) dk.nhanDem(h, Math.min(5, ngoai[h]), Math.min(5, trong[h].length), 0, t, false, 0);
+      }
+      dk.capNhat(t);
+      if (t % 60000 === 0) lich.push([t / 60000, dk.hoc.kieu[0], dk.hoc.kieu[1]]);
+    }
+    return { dk, sk, lich, ton: [1, 2, 3, 4].map(h => ngoai[h] + trong[h].length) };
+  }
+  const phanTT = (lich, tu, den) => { const o = lich.filter(x => x[0] >= tu && x[0] <= den); return o.filter(x => x[1] === 2).length / o.length; };
+  const a = nga_tu(40, () => 0);
+  console.log('Ngã tư thu nhỏ, không xe rẽ trái: ' + a.sk.filter(x => x[1] === 'hoc_nhan').map(x => x[0] + ' ph trục ' + (x[2] >> 2) + ' → ' + ['', 'riêng', 'thẳng trước'][x[2] & 3]).join('; '));
+  kiem(phanTT(a.lich, 10, 40) > 0.9 && a.dk.hoc.kieu.join() === '2,2', 'không có xe rẽ trái: sau 10 phút cả hai trục phải giữ "thẳng trước"');
+  const b = nga_tu(40, () => 2);
+  kiem(phanTT(b.lich, 0, 40) < 0.1 && b.dk.hoc.kieu.join() === '1,1', 'một nửa xe làn trong rẽ trái: phải giữ "riêng" (thẳng trước chỉ được thử, không được chọn)');
+  kiem(b.sk.filter(x => x[1] === 'hoc_tra').length >= 2, 'vẫn phải có thử "thẳng trước" định kì');
+  const c = nga_tu(80, t => t < 40 * 60000 ? 0 : 2);
+  console.log('Đổi dòng xe ở phút 40 (hết rẽ trái → một nửa rẽ trái): ' + c.sk.filter(x => x[1] === 'hoc_nhan' && x[0] >= 40).map(x => x[0] + ' ph trục ' + (x[2] >> 2) + ' → ' + ['', 'riêng', 'thẳng trước'][x[2] & 3]).join('; '));
+  kiem(phanTT(c.lich, 10, 40) > 0.9 && phanTT(c.lich, 55, 80) < 0.1, 'đổi dòng xe: 15 phút sau khi có nhiều xe rẽ trái phải về "riêng"');
+  const d = nga_tu(80, t => t < 40 * 60000 ? 2 : 0);
+  console.log('Đổi dòng xe ở phút 40 (một nửa rẽ trái → hết rẽ trái): ' + d.sk.filter(x => x[1] === 'hoc_nhan' && x[0] >= 40).map(x => x[0] + ' ph trục ' + (x[2] >> 2) + ' → ' + ['', 'riêng', 'thẳng trước'][x[2] & 3]).join('; '));
+  kiem(phanTT(d.lich, 0, 40) < 0.1 && phanTT(d.lich, 60, 80) > 0.9, 'đổi dòng xe: 20 phút sau khi hết xe rẽ trái phải sang "thẳng trước"');
 }
 
 // ---------- 5) Chạy ngẫu nhiên, kiểm tra luật an toàn ----------
@@ -261,7 +314,7 @@ for (let lan = 0; lan < 400; lan++) {
   ts.che_do = ng(0, 1); ts.t_min = ng(5, 30) * 1000; ts.t_max = ts.t_min + ng(0, 60) * 1000;
   ts.cong_them = ng(0, 10) * 1000; ts.xe_quy_doi = ng(1, 20); ts.t_vang = ng(2, 5) * 1000; ts.t_do = ng(0, 4) * 1000;
   ts.cat_som = lan % 3 === 0 ? 0 : ng(2, 10) * 1000;
-  ts.kieu_pha = ng(0, 3); ts.hoc_so_chu_ki = ng(1, 2); ts.hoc_so_xe = ng(1, 6); ts.hoc_nguong = ng(0, 30);
+  ts.kieu_pha = ng(0, 3); ts.hoc_cach_thu = ng(0, 4); ts.hoc_so_xe = ng(0, 6); ts.hoc_nguong = ng(0, 30);
   ts.ut_giu = ng(0, 6) * 500;
   const co_ut = lan % 4 !== 1;                // một phần tư số lần không có xe ưu tiên, để bộ tự học được chạy
   const dk = new DieuKhien(ts);
@@ -309,6 +362,6 @@ for (let lan = 0; lan < 400; lan++) {
   }
 }
 console.log('Chạy ngẫu nhiên: 400 lần × 15 phút, ' + (dem_sk.chu_ki || 0) + ' lần chốt kế hoạch, ' + (dem_sk.uu_tien || 0) + ' lần ưu tiên, ' +
-  (dem_sk.cat_som || 0) + ' lần cắt xanh sớm, ' + (dem_sk.hoc_thu || 0) + ' lần tự học thử kiểu khác (' + (dem_sk.hoc_nhan || 0) + ' lần giữ).');
+  (dem_sk.cat_som || 0) + ' lần cắt xanh sớm, ' + (dem_sk.hoc_thu || 0) + ' lượt tự học chạy kiểu khác (' + (dem_sk.hoc_nhan || 0) + ' lần đổi kiểu).');
 console.log(so_loi === 0 ? 'ĐẠT: không có lỗi.' : 'KHÔNG ĐẠT: ' + so_loi + ' lỗi.');
 process.exit(so_loi === 0 ? 0 : 1);

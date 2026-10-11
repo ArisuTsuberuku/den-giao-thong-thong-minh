@@ -48,10 +48,11 @@ static const uint8_t CHAN_DEN[8][3] = {
 // KIEU_RIENG        riêng từng hướng (mặc định trên sa bàn)
 // KIEU_THANG_TRUOC  hai hướng cùng đi thẳng trước, rồi mở riêng cho làn trong còn xe
 // KIEU_DOI_XUNG     cùng đi thẳng rồi cùng rẽ trái
-// KIEU_TU_HOC       tự chạy thử "riêng" và "thẳng trước" rồi giữ kiểu chờ ít hơn cho từng trục.
-//                   Tự học cần dòng xe chạy thật và camera đếm ổn định trong nhiều phút; trên sa bàn
-//                   xe đặt bằng tay thì nên để KIEU_RIENG và đổi bằng lệnh "kieu" ở Serial khi cần.
+// KIEU_TU_HOC       mỗi trục tự chọn giữa "riêng" và "thẳng trước": cứ vài lượt chạy thử kiểu kia một
+//                   lượt, đo thời gian đèn cho cùng số xe rồi giữ kiểu nhanh hơn (giải thích ở dieu_khien.h).
+//                   Tự học cần xe chạy qua thật và camera đếm ổn định; trên sa bàn xe đặt bằng tay
+//                   thì nên để KIEU_RIENG và đổi bằng lệnh "kieu" ở Serial khi cần.
 #define KIEU_PHA KIEU_RIENG
-#define HOC_SO_CHU_KI 3         // tự học: mỗi lần đo hoặc thử dài ít nhất 3 vòng (một vòng = lượt dọc + lượt ngang)...
-#define HOC_SO_XE 30            // ... và phải có ít nhất 30 xe đi qua
-#define HOC_NGUONG 10           // tự học: kiểu thử phải chờ ít hơn ít nhất 10 % mới được chọn
+#define HOC_CACH_THU 4          // tự học: đang giữ "riêng" thì cứ 4 lượt của một trục lại thử "thẳng trước" một lượt
+#define HOC_SO_XE 4             // tự học: lượt có ít hơn 4 xe qua vạch dừng thì không tính
+#define HOC_NGUONG 10           // tự học: "thẳng trước" phải nhanh hơn "riêng" ít nhất 10 % mới được chọn

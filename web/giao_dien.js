@@ -6,11 +6,11 @@
   var $ = function (id) { return document.getElementById(id); };
 
   var NHIP = 40;                 // một nhịp mô phỏng = 40 ms
-  var KHOA_LUU = 'sa_ban_den_giao_thong_v2';
+  var KHOA_LUU = 'sa_ban_den_giao_thong_v3';
   var mp = new MoPhong({ hat: 2026 });
   var ts = mp.ts, cai = mp.cai;
   var tt = { chay: true, toc_do: 2, hien_vung: false, du: 0, t_truoc: 0, khung: 0,
-             so_cat_som: 0, ut_loai: 0, hoc_diem_truoc: 0 };
+             so_cat_som: 0, ut_loai: 0 };
   var nhat_ky = [];
 
   // ---------- Thông số trên bảng ----------
@@ -42,7 +42,7 @@
   var UT_MAU = ['', '#d8281f', '#4d5f3a', '#1b5fae', '#c0392b'];
   var KIEU = [
     { v: QD.KIEU_TU_HOC, ten: 'Tự học', dai: 'tự học',
-      mo_ta: 'Bộ điều khiển chạy thử "riêng" và "thẳng trước" cho từng trục, đo thời gian chờ mỗi xe rồi giữ kiểu tốt hơn.' },
+      mo_ta: 'Mỗi trục tự chọn giữa "riêng" và "thẳng trước": cứ vài lượt lại chạy thử kiểu kia một lượt, đo thời gian đèn cho cùng số xe rồi giữ kiểu nhanh hơn.' },
     { v: QD.KIEU_RIENG, ten: 'Riêng', dai: 'riêng từng hướng',
       mo_ta: 'Riêng từng hướng: mỗi hướng được xanh cả thẳng lẫn trái, xong hướng này tới hướng đối diện.' },
     { v: QD.KIEU_THANG_TRUOC, ten: 'Thẳng trước', dai: 'thẳng trước',
@@ -94,9 +94,9 @@
         ghi('Chọn kiểu chia pha "' + k.dai + '", áp dụng từ lượt sau.');
       });
     });
-    cap_nhat_truot.push(taoTruot($('muc_hoc'), 'ts_hoc_so_chu_ki', 'Tự học: mỗi lần đo dài ít nhất', 1, 8, 1,
-      function () { return ts.hoc_so_chu_ki; }, function (v) { ts.hoc_so_chu_ki = v; }, function (v) { return soVn(v) + ' vòng'; }));
-    cap_nhat_truot.push(taoTruot($('muc_hoc'), 'ts_hoc_nguong', 'Tự học: phải tốt hơn ít nhất', 0, 30, 5,
+    cap_nhat_truot.push(taoTruot($('muc_hoc'), 'ts_hoc_cach_thu', 'Tự học: thử kiểu kia sau mỗi', 2, 8, 1,
+      function () { return ts.hoc_cach_thu; }, function (v) { ts.hoc_cach_thu = v; }, function (v) { return soVn(v) + ' lượt'; }));
+    cap_nhat_truot.push(taoTruot($('muc_hoc'), 'ts_hoc_nguong', 'Tự học: phải nhanh hơn ít nhất', 0, 30, 5,
       function () { return ts.hoc_nguong; }, function (v) { ts.hoc_nguong = v; }, function (v) { return soVn(v) + ' %'; }));
 
     CO_XE.forEach(function (v) {
@@ -175,7 +175,7 @@
       ' s cho mỗi xe mô hình ở làn đông nhất, không quá ' + soVn(Math.max(ts.t_max, ts.t_min) / 1000) + ' s.' +
       (ts.cat_som > 0 ? ' Tổ hợp đang xanh hết xe quá ' + soVn(ts.cat_som / 1000) + ' s mà hướng khác có xe chờ thì chuyển vàng ngay; bước kế không còn xe thì bỏ qua.' : '');
   }
-  function datLaiGiaoDien() { tt.so_cat_som = 0; tt.ut_loai = 0; tt.hoc_diem_truoc = 0; }
+  function datLaiGiaoDien() { tt.so_cat_som = 0; tt.ut_loai = 0; }
   function capNhatGhiChuKieu() {
     for (var i = 0; i < KIEU.length; i++) if (KIEU[i].v === ts.kieu_pha) $('ghi_chu_kieu').textContent = KIEU[i].mo_ta;
   }
@@ -229,7 +229,6 @@
   }
   // Nhật ký chỉ ghi việc đáng chú ý (xe ưu tiên, tự học, đổi chế độ). Kế hoạch từng lượt đã có ở cột bên
   // trái; số lần cắt xanh sớm được đếm ở ô "Xe qua đèn".
-  function giayMoiXe(ms) { return soVn(ms / 1000, 1) + ' s/xe'; }
   mp.khiSuKien = function (loai, dl) {
     var hc = mp.dk.hoc, truc, kieu;
     if (loai === 'cat_som') tt.so_cat_som++;
@@ -239,20 +238,12 @@
     }
     else if (loai === 'uu_tien_qua') ghi('Xe ' + UT_TEN[dl.loai] + ' Hướng ' + dl.h + ' qua vạch dừng sau ' + soVn(dl.ms / 1000, 1) + ' s.');
     else if (loai === 'het_uu_tien') ghi('Hết ưu tiên Hướng ' + dl + ': chuyển vàng.');
-    else if (loai === 'hoc_thu') {
-      truc = dl >> 2; kieu = dl & 3; tt.hoc_diem_truoc = hc.diem_giu;
-      ghi('Tự học: thử kiểu "' + tenKieu(kieu) + '" cho trục ' + TEN_TRUC[truc] + '. Kiểu đang giữ: ' + giayMoiXe(hc.diem_giu) + '.');
-    }
     else if (loai === 'hoc_nhan') {
+      // chỉ ghi lúc đổi kiểu; các lượt thử định kì xem ở ô "Kiểu chia pha"
       truc = dl >> 2; kieu = dl & 3;
-      ghi('Tự học: giữ kiểu "' + tenKieu(kieu) + '" cho trục ' + TEN_TRUC[truc] + ' (' + giayMoiXe(hc.diem_thu) + ' so với ' + giayMoiXe(tt.hoc_diem_truoc) + ').');
+      ghi('Tự học: trục ' + TEN_TRUC[truc] + ' đổi sang "' + tenKieu(kieu) + '" (thẳng trước đang cần ' + soVn(hc.q[truc]) +
+          ' % thời gian đèn của kiểu riêng).');
     }
-    else if (loai === 'hoc_tra') {
-      truc = dl >> 2; kieu = dl & 3;
-      ghi('Tự học: kiểu "' + tenKieu(kieu) + '" không hơn (' + giayMoiXe(hc.diem_thu) + ' so với ' + giayMoiXe(tt.hoc_diem_truoc) +
-          '), trục ' + TEN_TRUC[truc] + ' về lại "' + tenKieu(hc.kieu[truc]) + '".');
-    }
-    else if (loai === 'hoc_huy') ghi('Tự học: bỏ lần thử trục ' + TEN_TRUC[dl] + ' vì có xe ưu tiên hoặc thiếu camera.');
     else if (loai === 'loi') ghi('LỖI AN TOÀN: tổ hợp đèn xung đột, chuyển sang nháy vàng.');
   };
 
@@ -556,21 +547,27 @@
 
   // Ô "Kiểu chia pha": kiểu đang dùng của từng trục và việc bộ tự học đang làm.
   function capNhatTheHoc() {
-    var dk = mp.dk, hc = dk.hoc, html = '';
+    var dk = mp.dk, hc = dk.hoc, html = '', ghi_chu = '';
     function dong(a, b) { html += '<dt>' + a + '</dt><dd>' + b + '</dd>'; }
     if (ts.che_do === QD.CHE_DO_CO_DINH) dong('Chế độ', 'Cố định: thứ tự và thời gian không đổi theo xe.');
     else if (ts.kieu_pha !== QD.KIEU_TU_HOC) dong('Cả hai trục', '<b>' + tenKieu(ts.kieu_pha) + '</b> (chọn tay)');
     else {
       for (var i = 0; i < 2; i++) {
-        var dang_thu = hc.dang_thu && hc.truc_thu === i;
-        dong('Trục ' + TEN_TRUC[i], '<b>' + tenKieu(hc.kieu[i]) + '</b>' + (dang_thu ? ', đang thử "' + tenKieu(dk.kieuChoChuKi()[i]) + '"' : ''));
+        var dang_thu = hc.l_thu && hc.l_truc === i, them;
+        if (hc.kieu[i] === QD.KIEU_RIENG) {
+          them = dang_thu ? 'lượt này đang thử "thẳng trước"' :
+            (hc.b[0] < 0 && hc.b[1] < 0 ? 'đang đo mốc của kiểu riêng' :
+              (hc.dem[i] >= hc.cach[i] ? 'lượt tới thử "thẳng trước"' : 'thử "thẳng trước" sau ' + (hc.cach[i] - hc.dem[i]) + ' lượt'));
+          if (hc.q[i] >= 0) them += '; lần gần nhất thẳng trước cần ' + soVn(hc.q[i]) + ' %';
+        } else {
+          them = dang_thu ? 'lượt này chạy "riêng" để lấy mốc so sánh' : (hc.q[i] >= 0 ? 'đang cần ' + soVn(hc.q[i]) + ' %' : 'đang đo');
+        }
+        dong('Trục ' + TEN_TRUC[i], '<b>' + tenKieu(hc.kieu[i]) + '</b><br>' + them);
       }
-      var can_vong = ts.hoc_so_chu_ki, can_xe = ts.hoc_so_xe;
-      dong(hc.dang_thu ? 'Lần thử' : 'Lần đo', hc.hong ? 'đang bỏ (có xe ưu tiên hoặc thiếu camera)' :
-        Math.min(can_vong, Math.floor(hc.so_ck / 2)) + '/' + can_vong + ' vòng, ' + Math.min(can_xe, Math.floor(hc.luot / 2)) + '/' + can_xe + ' xe');
-      dong('Chờ mỗi xe', hc.diem_giu < 0 ? 'chưa đo xong' : 'kiểu đang giữ ' + soVn(hc.diem_giu / 1000, 1) + ' s' +
-        (hc.diem_thu >= 0 ? '; lần thử gần nhất ' + soVn(hc.diem_thu / 1000, 1) + ' s' : ''));
+      ghi_chu = 'Số % là thời gian đèn mà "thẳng trước" cần so với "riêng" cho cùng số xe. Hai lần thử liền dưới ' + (100 - ts.hoc_nguong) +
+        ' % thì đổi sang thẳng trước; lên tới ' + soVn(100 + ts.hoc_nguong / 2) + ' % thì về riêng.';
     }
+    $('hoc_ghi_chu').textContent = ghi_chu;
     $('hoc_noi_dung').innerHTML = html;
   }
 

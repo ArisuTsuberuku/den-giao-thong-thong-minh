@@ -20,7 +20,7 @@ function chay(cai, kieu, hat) {
   let dem = 0, thang_truoc = [0, 0];
   for (let i = 0; i < PHUT * 1500; i++) {
     mp.buoc(40);
-    if (i % 250 === 0) { const k = mp.dk.kieuChoChuKi(); dem++; if (k[0] === T) thang_truoc[0]++; if (k[1] === T) thang_truoc[1]++; }
+    if (i % 250 === 0) { const k = mp.dk.hoc.kieu; dem++; if (k[0] === T) thang_truoc[0]++; if (k[1] === T) thang_truoc[1]++; }
   }
   return { cho: mp.tongHop().cho_tb, doc: thang_truoc[0] / dem, ngang: thang_truoc[1] / dem };
 }
@@ -50,7 +50,7 @@ const CA = [
 
 const so = (x) => x.toFixed(1).padStart(9);
 console.log('Thời gian chờ trung bình (giây), ' + PHUT + ' phút mô phỏng, trung bình ' + HAT.length + ' lần chạy, thông số mặc định.');
-console.log('"Dọc T" là trục dọc thẳng trước, trục ngang riêng; "Ngang T" thì ngược lại. Hai cột cuối: phần thời gian tự học dùng kiểu thẳng trước.');
+console.log('"Dọc T" là trục dọc thẳng trước, trục ngang riêng; "Ngang T" thì ngược lại. Hai cột cuối: phần thời gian tự học giữ kiểu thẳng trước.');
 console.log('Dòng xe (mỗi hướng)'.padEnd(34) + 'Riêng'.padStart(9) + 'Th.trước'.padStart(9) + 'Đối xứng'.padStart(9) + 'Dọc T'.padStart(9) + 'Ngang T'.padStart(9) +
   'Tự học'.padStart(9) + '  so với riêng  so với tốt nhất   dọc   ngang');
 let tong_rieng = 0, tong_tot = 0;

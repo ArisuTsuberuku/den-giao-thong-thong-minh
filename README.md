@@ -16,8 +16,9 @@ Code cho mô hình ngã tư trên sa bàn Lần 08: 4 camera ESP32-S3-CAM đếm
 Đã kiểm tra trên máy tính:
 
 - Bộ quyết định đèn cho đúng kế hoạch ở các ca của mục 6 trong `TIEN_DO_DU_AN.md` và ở từng kiểu chia pha.
-- Bản C++ trong firmware và bản JavaScript trong web cho kết quả giống nhau trên 760 000 dòng trạng thái sinh ngẫu nhiên, kể cả lúc bộ đếm thời gian 32 bit quay vòng, lúc có xe ưu tiên đủ 4 loại và lúc bộ tự học đang chạy thử (297 lần thử).
+- Bản C++ trong firmware và bản JavaScript trong web cho kết quả giống nhau trên 760 000 dòng trạng thái sinh ngẫu nhiên, kể cả lúc bộ đếm thời gian 32 bit quay vòng, lúc có xe ưu tiên đủ 4 loại và lúc bộ tự học đang chạy (262 lượt chạy thử, 10 lần đổi kiểu).
 - Trong 400 lần chạy ngẫu nhiên 15 phút (hơn 800 lần cắt xanh sớm, hơn 6 000 lần ưu tiên): không lần nào hai nhóm xung đột cùng sáng, không nhóm nào từ xanh sang đỏ mà thiếu vàng, đỏ toàn phần luôn đủ.
+- Bộ tự học, thử trên một ngã tư thu nhỏ trong `thu_quyet_dinh.js`: không có xe rẽ trái thì cả hai trục sang "thẳng trước" sau 3 phút; một nửa xe làn trong rẽ trái thì giữ "riêng"; đổi dòng xe giữa chừng thì đổi kiểu theo sau 7–9 phút.
 - Mô phỏng 30 phút với 6 kiểu dòng xe và 3 cỡ xe: không có hai xe đè lên nhau, không xe nào vượt đèn đỏ, cả 4 loại xe ưu tiên đều qua được, xe ưu tiên qua vạch dừng thì chừng 1,5 s sau đèn chuyển vàng.
 - Cả hai firmware biên dịch được cho ESP32-S3 với lõi `esp32` 2.0.9 và 3.3.12. Chế độ đếm của camera mới biên dịch với thư viện Edge Impulse giả (`kiem_thu/gia_ei`).
 
@@ -58,11 +59,11 @@ Thời gian chờ trung bình trước vạch dừng (giây), 60 phút mô phỏ
 
 | Kiểu dòng xe | Cố định | Riêng | Thẳng trước | Đối xứng | Tự học | Tự học so với cố định |
 |---|---|---|---|---|---|---|
-| Đều, vừa phải (6 xe/phút mỗi hướng, 25 % rẽ trái) | 55,5 | 25,9 | 34,1 | 245,9 | 27,7 | −50 % |
-| Dọc đông, ngang vắng | 153,3 | 17,9 | 17,6 | 128,3 | 18,6 | −88 % |
+| Đều, vừa phải (6 xe/phút mỗi hướng, 25 % rẽ trái) | 55,5 | 25,9 | 34,1 | 245,9 | 26,7 | −52 % |
+| Dọc đông, ngang vắng | 153,3 | 17,9 | 17,6 | 128,3 | 17,7 | −88 % |
 | Chỉ Hướng 1 có xe | 398,1 | 2,4 | 2,4 | 2,4 | 2,4 | −99 % |
-| Giờ cao điểm (12 xe/phút mỗi hướng, 30 % rẽ trái) | 595,6 | 81,1 | 179,2 | 986,8 | 99,7 | −83 % |
-| Ít rẽ trái (8 xe/phút mỗi hướng, 5 % rẽ trái) | 39,6 | 39,3 | 26,0 | 77,2 | 32,6 | −18 % |
+| Giờ cao điểm (12 xe/phút mỗi hướng, 30 % rẽ trái) | 595,6 | 81,1 | 179,2 | 986,8 | 99,1 | −83 % |
+| Ít rẽ trái (8 xe/phút mỗi hướng, 5 % rẽ trái) | 39,6 | 39,3 | 26,0 | 77,2 | 33,1 | −16 % |
 | Vắng (1,5 xe/phút mỗi hướng) | 33,4 | 9,3 | 9,1 | 9,9 | 9,3 | −72 % |
 
 Đây là số của mô phỏng với trễ phản ứng 1 s, chưa phải số đo trên sa bàn thật.
@@ -73,27 +74,36 @@ Khảo sát riêng về kiểu chia pha (120 phút mô phỏng, trung bình 3 l�
 
 | Dòng xe | Riêng | Thẳng trước | Đối xứng | Tự học | Tự học so với riêng |
 |---|---|---|---|---|---|
-| 3 xe/phút, 0 % rẽ trái | 13,5 | 9,1 | **9,0** | 11,3 | −16 % |
-| 3 xe/phút, 25 % rẽ trái | **15,2** | 15,4 | 31,0 | 15,4 | +2 % |
-| 6 xe/phút, 0 % rẽ trái | 25,9 | **10,8** | **10,8** | 13,0 | −50 % |
-| 6 xe/phút, 5 % rẽ trái | 25,8 | **17,3** | 51,8 | 20,4 | −21 % |
-| 6 xe/phút, 10 % rẽ trái | 25,9 | **22,7** | 93,4 | 24,8 | −4 % |
-| 6 xe/phút, 25 % rẽ trái | **25,9** | 35,2 | 322,7 | 27,1 | +5 % |
-| 6 xe/phút, 40 % rẽ trái | **27,0** | 41,0 | 642,8 | 28,1 | +4 % |
-| 8 xe/phút, 5 % rẽ trái | 38,9 | **26,5** | 79,6 | 31,2 | −20 % |
-| 9 xe/phút, 0 % rẽ trái | 48,6 | **15,4** | 17,7 | 19,4 | −60 % |
-| 9 xe/phút, 25 % rẽ trái | **47,1** | 61,2 | 1203,9 | 49,2 | +5 % |
-| 12 xe/phút, 30 % rẽ trái | **87,0** | 279,5 | 1939,0 | 112,5 | +29 % |
-| 6 xe/phút, dọc 0 %, ngang 25 % rẽ trái | 25,9 | 19,1 | 39,2 | **18,5** | −29 % |
-| Dọc đông, ngang vắng | 18,3 | **18,0** | 162,3 | 18,9 | +3 % |
+| 3 xe/phút, 0 % rẽ trái | 13,5 | 9,1 | **9,0** | 9,3 | −31 % |
+| 3 xe/phút, 25 % rẽ trái | **15,2** | 15,4 | 31,0 | 15,3 | +1 % |
+| 6 xe/phút, 0 % rẽ trái | 25,9 | **10,8** | **10,8** | 11,7 | −55 % |
+| 6 xe/phút, 5 % rẽ trái | 25,8 | **17,3** | 51,8 | 19,3 | −25 % |
+| 6 xe/phút, 10 % rẽ trái | 25,9 | **22,7** | 93,4 | 24,6 | −5 % |
+| 6 xe/phút, 25 % rẽ trái | **25,9** | 35,2 | 322,7 | 27,0 | +4 % |
+| 6 xe/phút, 40 % rẽ trái | **27,0** | 41,0 | 642,8 | 28,9 | +7 % |
+| 8 xe/phút, 5 % rẽ trái | 38,9 | **26,5** | 79,6 | 31,8 | −18 % |
+| 9 xe/phút, 0 % rẽ trái | 48,6 | **15,4** | 17,7 | 17,2 | −65 % |
+| 9 xe/phút, 25 % rẽ trái | **47,1** | 61,2 | 1203,9 | 50,9 | +8 % |
+| 12 xe/phút, 30 % rẽ trái | **87,0** | 279,5 | 1939,0 | 102,0 | +17 % |
+| 6 xe/phút, dọc 0 %, ngang 25 % rẽ trái | 25,9 | 19,1 | 39,2 | **17,7** | −32 % |
+| Dọc đông, ngang vắng | 18,3 | 18,0 | 162,3 | **17,8** | −3 % |
 
 Đọc bảng:
 
 - **Đối xứng** ("hai hướng cùng đi thẳng, rồi cùng rẽ trái") chỉ ngang với kiểu tốt nhất khi không có xe rẽ trái. Chỉ cần 5 % xe rẽ trái là thời gian chờ đã gấp đôi kiểu riêng, từ 25 % trở lên thì ngã tư kẹt cứng. Lí do nằm ở sa bàn: làn trong đi chung thẳng và trái, nên trong bước "cùng đi thẳng" một xe rẽ trái đứng đầu làn chặn hết xe đi thẳng phía sau, và trong bước "cùng rẽ trái" một xe đi thẳng đứng đầu lại chặn hết xe rẽ trái.
 - **Thẳng trước** ("hai hướng cùng đi thẳng trước, làn ngoài hết xe thì mở riêng từng hướng cho làn trong") tốt nhất khi dưới khoảng 10–12 % xe rẽ trái, và hơn kiểu riêng càng nhiều khi đường càng đông (9 xe/phút, không rẽ trái: 15,4 s so với 48,6 s).
 - **Riêng** ("mỗi hướng được xanh cả thẳng lẫn trái, xong hướng này tới hướng đối diện") tốt nhất khi từ khoảng 15 % xe rẽ trái trở lên, và không bao giờ kẹt vì xe rẽ trái.
-- **Tự học** không biết trước tỉ lệ rẽ trái, tự tìm ra kiểu hợp cho từng trục. Trung bình 13 dòng trên, nó chờ ít hơn kiểu riêng 12 % và nhiều hơn kiểu tốt nhất của từng dòng 14 % (cái giá của việc phải thử). Khi hai trục khác nhau (dọc không rẽ trái, ngang rẽ 25 %), nó chọn mỗi trục một kiểu và tốt hơn mọi kiểu dùng chung cho cả hai trục.
-- Chỗ yếu của tự học: khi ngã tư quá tải mà nhiều xe rẽ trái (12 xe/phút, 30 %), mỗi lần thử kiểu "thẳng trước" làm hàng xe dài thêm và không kịp tan, nên nó chờ lâu hơn kiểu riêng 29 %. Gặp tình huống này thì chọn tay kiểu riêng.
+- **Tự học** không biết trước tỉ lệ rẽ trái, tự tìm ra kiểu hợp cho từng trục. Trung bình 13 dòng trên, nó chờ ít hơn kiểu riêng 15 % và nhiều hơn kiểu tốt nhất của từng dòng 8 % (cái giá của việc phải thử). Khi hai trục khác nhau (dọc không rẽ trái, ngang rẽ 25 %), nó chọn mỗi trục một kiểu và tốt hơn mọi kiểu dùng chung cho cả hai trục.
+- Chỗ yếu của tự học: khi ngã tư quá tải mà nhiều xe rẽ trái (12 xe/phút, 30 %), mỗi lượt thử "thẳng trước" làm hàng xe dài thêm và lâu tan, nên nó chờ lâu hơn kiểu riêng 17 %. Gặp tình huống này thì chọn tay kiểu riêng.
+
+**Đổi dòng xe giữa chừng** (6 xe/phút mỗi hướng, đổi tỉ lệ rẽ trái ở phút 30, đo số phút tới khi từng trục đổi kiểu; 3 lần chạy, mỗi lần 2 trục):
+
+| Đổi | Số phút tới khi đổi kiểu |
+|---|---|
+| 25 % rẽ trái → không ai rẽ trái (phải sang "thẳng trước") | 9, 10, 11, 11, 12, 30 |
+| Không ai rẽ trái → 25 % rẽ trái (phải về "riêng") | 9, 14, 17, 18, 19, 20 |
+
+Tức là thường mất 10–20 phút mô phỏng, tương đương vài lượt thử của mỗi trục. Bản tự học đầu tiên (đo thời gian chờ theo từng cửa sổ 3 vòng) trong cùng tình huống mất từ 11 phút tới hơn 90 phút, có khi không đổi.
 
 ## 2. Bộ quyết định đèn
 
@@ -117,16 +127,25 @@ Kế hoạch của một lượt:
 
 Thời gian xanh định trước của mỗi bước = Tmin + 5 s × (số xe ở làn đông nhất mà bước đó phục vụ × quy đổi / 10), trong khoảng Tmin đến Tmax; cắt xanh sớm có thể làm bước kết thúc trước mức đó. Giữa hai bước, nhóm có mặt ở cả hai thì giữ xanh; nhóm rời đi qua vàng 3 s rồi đỏ, sau đó đỏ toàn phần 2 s.
 
-**Tự học kiểu chia pha** (`KIEU_TU_HOC`). Camera không biết xe ở làn trong sẽ đi thẳng hay rẽ trái, nên không tính trước được kiểu nào tốt hơn. Bộ điều khiển vì vậy học bằng cách thử, riêng cho từng trục:
+**Tự học kiểu chia pha** (`KIEU_TU_HOC`). Camera không biết xe ở làn trong sẽ đi thẳng hay rẽ trái, nên không tính trước được kiểu nào tốt hơn. Bộ điều khiển học bằng cách đo từng lượt của từng trục, chỉ dùng số đếm của camera:
 
-1. Đo thời gian chờ trung bình mỗi xe của kiểu đang giữ trong một cửa sổ dài ít nhất 3 vòng (mỗi vòng gồm lượt dọc và lượt ngang) và ít nhất 30 xe đi qua. Cách đo chỉ dùng số đếm của camera: cộng dồn (tổng số xe 4 camera đang thấy × thời gian), chia cho số xe đã đi qua; số xe đi qua bằng nửa số lần số đếm của một làn tăng hoặc giảm 1.
-2. Đổi kiểu của một trục ("riêng" sang "thẳng trước" hoặc ngược lại), chạy thử một cửa sổ, đo lại. Nếu sau một vòng đã thấy kém rõ thì dừng thử ngay.
-3. Kiểu thử tốt hơn thì giữ, không thì trả về kiểu cũ. Sang "thẳng trước" cần thời gian chờ giảm ít nhất 10 %; về "riêng" chỉ cần không tăng quá 10 %, vì kiểu riêng là kiểu an toàn. Trục vừa thử hỏng phải chờ 2, rồi 4, 8, 16 cửa sổ mới được thử lại.
-4. Cửa sổ nào có xe ưu tiên hoặc thiếu camera thì bỏ, đo lại.
+- **Thời gian đèn của một lượt** = thời gian xanh của từng bước (tính tới lúc các làn của bước đó hết xe) + số bước × (vàng + đỏ toàn phần + thời gian chờ cắt sớm).
+- **Số xe đã qua** trong lượt: mỗi lần số đếm của một làn giảm 1 là một xe qua vạch dừng.
+- Lượt chạy kiểu "riêng" cho **mốc**: mỗi xe cần bao nhiêu giây xanh. Giữ hai mốc, một cho lượt xả hết xe và một cho lượt quá tải (có bước hết giờ mà vẫn còn xe), vì hai loại lượt này có nhịp xả khác nhau.
+- Lượt chạy kiểu "thẳng trước" cho **điểm %**: thời gian đèn của lượt đó so với thời gian mà kiểu riêng cần cho cùng số xe (tính từ mốc cùng loại). Dưới 100 % là thẳng trước nhanh hơn. Trong mô phỏng ở 6 xe/phút mỗi hướng, điểm trung bình là 61 % khi không có xe rẽ trái, 81 % ở 5 % rẽ trái, 100 % ở 10 %, 109 % ở 15 % và 125 % ở 25 %, tức là vượt 100 % ở đúng quãng mà kiểu riêng bắt đầu tốt hơn.
+
+Luật chọn, riêng cho từng trục:
+
+1. Đang giữ "riêng": cứ 4 lượt (`HOC_CACH_THU`) thì chạy thử một lượt "thẳng trước". Lượt thử đạt 90 % trở xuống (100 − `HOC_NGUONG`) thì lượt sau thử tiếp; trung bình hai lượt vẫn đạt thì đổi sang "thẳng trước". Lượt thử kém rõ (từ 110 %) thì lần thử sau giãn ra 8 lượt.
+2. Đang giữ "thẳng trước": mỗi lượt cập nhật điểm (trung bình trượt). Điểm lên tới 105 % thì về "riêng". Thỉnh thoảng chạy một lượt "riêng" để làm mới mốc: cách 4 lượt khi điểm còn gần 100 %, cách 16 lượt khi điểm đã dưới 80 %.
+3. Lúc quá tải, thử sai rất tốn nên đòi bằng chứng mạnh hơn: lượt thử quá tải phải đạt 80 %, không đạt thì giãn tới 16 lượt; đang giữ "thẳng trước" mà lượt quá tải có điểm từ 100 % là về "riêng".
+4. Lượt có xe ưu tiên, thiếu camera hoặc dưới 4 xe qua (`HOC_SO_XE`) thì không tính. Mỗi lần bật máy bắt đầu từ "riêng".
+
+Cách đo này dựa vào số đếm giảm dần khi xe qua vạch. Nếu hàng xe luôn đầy vùng camera và số đếm đứng yên, hoặc camera đếm nhảy lung tung, thì số xe qua bị sai; khi không đếm được xe nào, bộ tự học giữ nguyên kiểu đang có.
 
 Kiểu "đối xứng" không nằm trong hai kiểu được thử, vì một lần thử sai có thể làm kẹt cả ngã tư; muốn dùng thì chọn tay.
 
-Web mặc định dùng tự học. Firmware mặc định dùng kiểu riêng (`KIEU_PHA` trong `cau_hinh.h`): tự học cần dòng xe chạy thật và camera đếm ổn định trong nhiều phút, còn trên sa bàn xe được đặt bằng tay. Đổi được lúc đang chạy bằng lệnh `kieu` ở Serial.
+Web mặc định dùng tự học. Firmware mặc định dùng kiểu riêng (`KIEU_PHA` trong `cau_hinh.h`): tự học cần xe chạy qua vạch thật và camera đếm ổn định, còn trên sa bàn xe được đặt bằng tay. Đổi được lúc đang chạy bằng lệnh `kieu` ở Serial.
 
 **Xe ưu tiên** (`emg` khác 0). Có 4 loại, ghi ở trường `ut`, số nhỏ hơn được đi trước: 1 cứu hỏa, 2 quân sự, 3 công an, 4 cứu thương ("hỏa → sự → công → thương").
 
@@ -217,6 +236,6 @@ Bài cuối (mô phỏng xe) mất khoảng 10 phút. Bảng khảo sát kiểu 
 ## 6. Việc để sau
 
 - Trình tự ưu tiên chi tiết theo báo cáo (các mốc T − 15 s, T − 10 s, bù 15 s xanh).
-- Tự học: giảm số lần thử khi ngã tư quá tải; thử trên sa bàn thật khi camera đã đếm ổn định.
+- Tự học: giảm thêm cái giá của việc thử khi ngã tư quá tải; thử trên sa bàn thật khi camera đã đếm ổn định.
 - Bộ quyết định mức 3 (học máy).
 - Nối web với board qua Firebase Realtime Database.

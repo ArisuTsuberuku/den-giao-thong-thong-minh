@@ -26,8 +26,8 @@
   //                hướng cho làn trong còn xe. Lợi khi ít xe rẽ trái, thiệt khi nhiều.
   //   DOI_XUNG     hai hướng cùng đi thẳng, rồi cùng rẽ trái. Vì làn trong đi chung thẳng và trái
   //                nên xe hai loại dễ chặn nhau; chỉ hợp khi gần như không có xe rẽ trái.
-  //   TU_HOC       bộ điều khiển chạy thử RIENG và THANG_TRUOC, đo thời gian chờ rồi giữ kiểu tốt hơn
-  //                cho từng trục (xem dieu_khien.js)
+  //   TU_HOC       mỗi trục tự chọn giữa RIENG và THANG_TRUOC: cứ vài lượt chạy thử kiểu kia một lượt,
+  //                đo thời gian đèn cho cùng số xe rồi giữ kiểu nhanh hơn (xem dieu_khien.js)
   var KIEU_TU_HOC = 0, KIEU_RIENG = 1, KIEU_THANG_TRUOC = 2, KIEU_DOI_XUNG = 3;
 
   function thamSoMacDinh() {
@@ -47,9 +47,9 @@
       ut_toi_da: 60000,        // ưu tiên tự hủy sau thời gian này
       cat_som: 5000,           // chế độ thích ứng: tổ hợp đang xanh không còn xe quá lâu thế này thì cắt xanh sớm (0: tắt)
       kieu_pha: KIEU_TU_HOC,   // kiểu chia pha của chế độ thích ứng: KIEU_TU_HOC, KIEU_RIENG, KIEU_THANG_TRUOC hoặc KIEU_DOI_XUNG
-      hoc_so_chu_ki: 3,        // tự học: mỗi lần đo hoặc thử kéo dài ít nhất bấy nhiêu vòng (một vòng = lượt dọc + lượt ngang)...
-      hoc_so_xe: 30,           // ... và phải có ít nhất bấy nhiêu xe đi qua
-      hoc_nguong: 10           // tự học: kiểu thử phải hơn kiểu đang giữ ít nhất bấy nhiêu % mới được chọn
+      hoc_cach_thu: 4,         // tự học: đang giữ "riêng" thì cứ bấy nhiêu lượt của một trục lại thử "thẳng trước" một lượt (0: tắt tự học)
+      hoc_so_xe: 4,            // tự học: lượt có ít hơn bấy nhiêu xe qua vạch dừng thì không tính
+      hoc_nguong: 10           // tự học: "thẳng trước" phải nhanh hơn "riêng" ít nhất bấy nhiêu % mới được chọn
     };
   }
 

@@ -1,6 +1,6 @@
 # Tiến độ dự án: Đèn giao thông thông minh (NCKHKT 2026)
 
-Cập nhật lần cuối: 2026-10-11 (thêm chốt kế hoạch theo lượt, ba kiểu chia pha và chế độ tự học, bốn loại xe ưu tiên, cỡ xe trong mô phỏng; code ở repo GitHub `ArisuTsuberuku/den-giao-thong-thong-minh`; chưa thử trên board thật)
+Cập nhật lần cuối: 2026-10-11 (viết lại chế độ tự học để đổi kiểu chia pha nhanh hơn khi dòng xe thay đổi; trước đó cùng ngày: chốt kế hoạch theo lượt, ba kiểu chia pha, bốn loại xe ưu tiên, cỡ xe trong mô phỏng; code ở repo GitHub `ArisuTsuberuku/den-giao-thong-thong-minh`; chưa thử trên board thật)
 
 ## Cách dùng file này
 
@@ -182,16 +182,24 @@ Các ý khác trong báo cáo để dành cho GĐ6: "xả cân bằng" chia th�
 
 ### 5.6 Tự học kiểu chia pha (đã cài ở `dieu_khien.h` và `dieu_khien.js`, mới thử trong mô phỏng)
 
-Bộ điều khiển chọn giữa "riêng" và "thẳng trước" cho từng trục bằng cách thử:
+Bộ điều khiển chọn giữa "riêng" và "thẳng trước" cho từng trục bằng cách đo từng lượt, chỉ dùng số đếm của camera (bản thứ hai, viết lại ngày 2026-10-11; bản đầu đo thời gian chờ theo cửa sổ 3 vòng và đổi kiểu quá chậm):
 
-1. Đo thời gian chờ trung bình mỗi xe của kiểu đang giữ trong một cửa sổ dài ít nhất `HOC_SO_CHU_KI` vòng (3; một vòng gồm lượt dọc và lượt ngang) và ít nhất `HOC_SO_XE` xe đi qua (30). Chỉ dùng số đếm của camera: cộng dồn (tổng số xe 4 camera đang thấy × thời gian) rồi chia cho số xe đi qua; số xe đi qua bằng nửa số lần số đếm của một làn tăng hoặc giảm 1.
-2. Đổi kiểu của một trục, chạy thử một cửa sổ, đo lại. Sau một vòng đã thấy kém rõ thì dừng thử ngay.
-3. Sang "thẳng trước" cần thời gian chờ giảm ít nhất `HOC_NGUONG` (10 %); về "riêng" chỉ cần không tăng quá 10 %. Trục vừa thử hỏng phải chờ 2, rồi 4, 8, 16 cửa sổ mới thử lại.
-4. Cửa sổ có xe ưu tiên hoặc thiếu camera thì bỏ, đo lại. Mỗi lần bật máy bắt đầu từ kiểu "riêng".
+- Thời gian đèn của một lượt = thời gian xanh của từng bước (tính tới lúc các làn của bước đó hết xe) + số bước × (vàng + đỏ toàn phần + thời gian chờ cắt sớm). Số xe đã qua = số lần số đếm của một làn giảm 1.
+- Lượt chạy "riêng" cho mốc: mỗi xe cần bao nhiêu giây xanh. Có hai mốc: lượt xả hết xe và lượt quá tải (có bước hết giờ mà vẫn còn xe).
+- Lượt chạy "thẳng trước" cho điểm %: thời gian đèn của lượt đó so với thời gian kiểu riêng cần cho cùng số xe. Dưới 100 % là thẳng trước nhanh hơn. Mô phỏng ở 6 xe/phút: 61 % khi không có xe rẽ trái, 100 % ở 10 % rẽ trái, 125 % ở 25 %.
 
-Kết quả mô phỏng 120 phút (`node kiem_thu/khao_sat_kieu_pha.js`, bảng đầy đủ ở `README.md`): trung bình 13 kiểu dòng xe, tự học chờ ít hơn kiểu riêng 12 %; ít hơn 50–60 % khi không có xe rẽ trái ở đường đông; nhiều hơn 2–5 % khi từ 25 % xe rẽ trái (cái giá của việc thử). Chỗ yếu: ngã tư quá tải mà nhiều xe rẽ trái (12 xe/phút mỗi hướng, 30 % rẽ trái) thì chờ lâu hơn kiểu riêng 29 %, vì mỗi lần thử làm hàng xe dài thêm và không kịp tan.
+Luật chọn cho từng trục:
 
-Điều kiện để dùng trên sa bàn thật: camera đếm ổn định (số đếm nhảy lung tung sẽ làm sai số xe đi qua), và có dòng xe chạy liên tục nhiều phút. Xe đặt bằng tay thì nên chọn kiểu cố định bằng lệnh `kieu`.
+1. Đang giữ "riêng": cứ `HOC_CACH_THU` lượt (4) thì thử một lượt "thẳng trước". Đạt 100 − `HOC_NGUONG` (90 %) thì lượt sau thử tiếp; trung bình hai lượt vẫn đạt thì đổi. Kém rõ (từ 110 %) thì lần thử sau giãn ra 8 lượt.
+2. Đang giữ "thẳng trước": điểm trung bình trượt lên tới 105 % thì về "riêng". Thỉnh thoảng chạy một lượt "riêng" để làm mới mốc (cách 4 lượt khi điểm gần 100 %, cách 16 lượt khi điểm dưới 80 %).
+3. Lúc quá tải đòi bằng chứng mạnh hơn: lượt thử phải đạt 80 %, không đạt thì giãn tới 16 lượt; đang giữ "thẳng trước" mà điểm từ 100 % là về "riêng".
+4. Lượt có xe ưu tiên, thiếu camera hoặc dưới `HOC_SO_XE` xe qua (4) thì không tính. Mỗi lần bật máy bắt đầu từ kiểu "riêng".
+
+Kết quả mô phỏng 120 phút (`node kiem_thu/khao_sat_kieu_pha.js`, bảng đầy đủ ở `README.md`): trung bình 13 kiểu dòng xe, tự học chờ ít hơn kiểu riêng 15 % và nhiều hơn kiểu tốt nhất của từng dòng 8 %; ít hơn 55–65 % khi không có xe rẽ trái ở đường đông; nhiều hơn 1–8 % khi từ 25 % xe rẽ trái. Chỗ yếu: ngã tư quá tải mà nhiều xe rẽ trái (12 xe/phút mỗi hướng, 30 % rẽ trái) thì chờ lâu hơn kiểu riêng 17 %.
+
+Đổi dòng xe giữa chừng (6 xe/phút mỗi hướng): từ 25 % rẽ trái về 0 % thì 5 trong 6 lần sang "thẳng trước" sau 9–12 phút, một lần 30 phút; từ 0 % lên 25 % thì về "riêng" sau 9–20 phút.
+
+Điều kiện để dùng trên sa bàn thật: xe phải chạy qua vạch thật (số đếm giảm dần) và camera đếm ổn định. Số đếm nhảy lung tung, hoặc hàng xe luôn đầy vùng camera làm số đếm đứng yên, thì số xe qua bị sai. Xe đặt bằng tay thì nên chọn kiểu cố định bằng lệnh `kieu`.
 
 ## 6. Tham số thời gian (giá trị thực tế)
 
@@ -211,7 +219,8 @@ Kết quả mô phỏng 120 phút (`node kiem_thu/khao_sat_kieu_pha.js`, bảng 
 | Xanh ít nhất trước khi bị cắt để ưu tiên | 5 s | Đề xuất |
 | Xe ưu tiên qua rồi thì chuyển vàng sau `UT_GIU` | 1 s không còn thấy xe | Thầy yêu cầu 2026-10-11 (trước đó 5 s) |
 | Kiểu chia pha `KIEU_PHA` | web: tự học; firmware: riêng từng hướng | Đề xuất |
-| Tự học: độ dài một cửa sổ đo | ít nhất 3 vòng và 30 xe | Đề xuất, chọn qua mô phỏng |
+| Tự học: khoảng cách giữa hai lượt thử `HOC_CACH_THU` | 4 lượt của một trục | Đề xuất, chọn qua mô phỏng |
+| Tự học: số xe ít nhất của một lượt được tính `HOC_SO_XE` | 4 xe | Đề xuất |
 | Tự học: ngưỡng đổi kiểu `HOC_NGUONG` | 10 % | Đề xuất, chọn qua mô phỏng |
 
 Với quy đổi trên, mỗi xe mô hình cộng 5 s: 0 xe → 15 s, 1 xe → 20 s, 2 xe → 25 s, 3 xe → 30 s, 4 xe (đầy làn từ Lần 08) → 35 s. Mức Tmax 90 s chỉ đạt khi có 150 xe thật, tức không xảy ra trên sa bàn.
@@ -313,7 +322,7 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 9. Mô phỏng (trễ phản ứng 1 s, cỡ xe 75 %): chế độ thích ứng tự học chờ ít hơn chế độ cố định ở cả 6 kiểu dòng xe (18–99 %). Kiểu "ít rẽ trái" trước đây thua 24 %, nay hơn 18 % nhờ kiểu thẳng trước. Cần kiểm lại trên sa bàn thật, nhất là việc camera đếm có đủ ổn định để cắt sớm và để tự học không.
 10. Thầy quyết: giữ thứ tự quân sự trước công an, hay cho hai loại cùng hạng như Điều 27 Luật Trật tự, an toàn giao thông đường bộ 2024 (mục 24 phần 3).
 11. Chuẩn bị 4 xe ưu tiên mô hình khác hẳn nhau về màu để mô hình 96 × 96 phân biệt được; chụp đủ ảnh từng loại. Nếu không phân biệt nổi thì gộp một lớp `xe_uu_tien`.
-12. Tự học còn yếu khi ngã tư quá tải mà nhiều xe rẽ trái (chờ lâu hơn kiểu riêng 29 % trong mô phỏng). Hướng cải tiến: giảm số lần thử khi hàng xe đang đầy.
+12. Tự học còn yếu khi ngã tư quá tải mà nhiều xe rẽ trái (chờ lâu hơn kiểu riêng 17 % trong mô phỏng), và có lần mất 30 phút mới đổi kiểu. Trên sa bàn thật còn phải xem camera đếm có đủ ổn định để đếm được xe qua vạch không.
 
 ## 12. Nhật ký thay đổi
 
@@ -340,3 +349,4 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 | 2026-10-11 | Thêm chế độ tự học theo yêu cầu của thầy: mỗi trục tự chạy thử "riêng" và "thẳng trước", đo thời gian chờ mỗi xe từ số đếm camera, giữ kiểu tốt hơn. Trung bình 13 kiểu dòng xe chờ ít hơn kiểu riêng 12 %; kém kiểu riêng 29 % khi quá tải và nhiều rẽ trái. So khớp C++ với JavaScript trên 760 000 dòng, có 297 lần thử của bộ tự học |
 | 2026-10-11 | Theo góp ý thầy chuyển tới: web vẽ xe nhỏ lại (mặc định 75 %, chọn được 60/75/100 %); thêm xe cứu hỏa, quân sự, công an bên cạnh xe cứu thương, mở đèn theo thứ tự hỏa → sự → công → thương; JSON thêm trường `ut`; firmware camera nhận 4 nhãn xe ưu tiên |
 | 2026-10-11 | Theo yêu cầu của thầy: xe ưu tiên qua khỏi vùng camera 1 s là chuyển vàng ngay (trước đó giữ xanh thêm 5 s); sau ưu tiên, đèn trả cho trục vừa phải chờ |
+| 2026-10-11 | Thầy thấy trên web: giảm xe rẽ trái mà đèn vẫn chỉ chạy kiểu "thẳng và trái". Kiểm tra lại: bản tự học đầu đổi kiểu quá chậm (11 đến hơn 90 phút mô phỏng, có khi không đổi). Viết lại tự học: đo thời gian đèn của từng lượt so với kiểu riêng cho cùng số xe, cứ 4 lượt thử một lượt. Nay đổi kiểu sau 9–20 phút (một lần 30 phút); trung bình 13 kiểu dòng xe chờ ít hơn kiểu riêng 15 % (trước 12 %); quá tải nhiều rẽ trái kém kiểu riêng 17 % (trước 29 %). Thêm bài kiểm tra đổi dòng xe giữa chừng |

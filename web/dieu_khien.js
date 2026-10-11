@@ -12,7 +12,6 @@
 
   var PHA_KHOI_DONG = 0, PHA_XANH = 1, PHA_VANG = 2, PHA_DO_DON = 3;
   var MAU_DO = 0, MAU_VANG = 1, MAU_XANH = 2;
-  var LUI_DAU = 2, LUI_TOI_DA = 16;     // tự học: số cửa sổ đo phải chờ giữa hai lần thử cùng một trục
 
   // Hai kiểu chia pha mà bộ tự học chọn giữa: "riêng từng hướng" và "cùng đi thẳng trước".
   function kieuNguoc(k) { return k === QD.KIEU_RIENG ? QD.KIEU_THANG_TRUOC : QD.KIEU_RIENG; }
@@ -50,7 +49,6 @@
     this.ut_bat_dau = 0;
     this.ut_thay = 0;             // lần cuối còn thấy xe ưu tiên
     this.truc_ke = 0;             // lượt kế là của trục nào (0 dọc, 1 ngang)
-    this.t_tich = 0;              // tự học: đã cộng dồn hàng chờ tới thời điểm này
     this.hoc = this.hocMoi();
     this.loi = false;
     this.khiSuKien = null;        // hàm(loại, dữ liệu) để ghi nhật ký; không bắt buộc
@@ -62,7 +60,6 @@
     this.kh = []; this.i_buoc = -1; this.chu_ki = 0; this.ut_huong = 0;
     this.dang_trong = false;
     this.truc_ke = 0;
-    this.t_tich = t;
     this.hoc = this.hocMoi();
     this.t_het = t + this.ts.t_do;
   };
@@ -80,8 +77,8 @@
     if (ut !== 0 && emg === 0) emg = 1;
     if (ut !== 0 && (!d.co || d.ut === 0)) d.emg_tu = t;
     if (ut === 0) this.ut_khoa[id] = false;
-    // tự học: mỗi lần số đếm của một làn tăng hay giảm 1 là một lượt xe vào hoặc ra vùng camera
-    if (d.co) this.hoc.luot += (s > d.s ? s - d.s : d.s - s) + (l > d.l ? l - d.l : d.l - l);
+    // tự học: số đếm của một làn giảm 1 là một xe vừa qua vạch dừng; cộng cho trục của hướng đó
+    if (d.co) this.hoc.ra[(id - 1) & 1] += (d.s > s ? d.s - s : 0) + (d.l > l ? d.l - l : 0);
     d.s = s; d.l = l; d.emg = emg; d.ut = ut; d.t_nhan = t; d.co = true; d.giu = !!giu;
     return true;
   };
@@ -144,21 +141,26 @@
       if (k !== QD.KIEU_THANG_TRUOC && k !== QD.KIEU_DOI_XUNG) k = QD.KIEU_RIENG;
       return [k, k];
     }
-    var hc = this.hoc, kieu = [hc.kieu[0], hc.kieu[1]];
-    if (hc.dang_thu) kieu[hc.truc_thu] = kieuNguoc(kieu[hc.truc_thu]);
+    var kieu = [this.hoc.kieu[0], this.hoc.kieu[1]];
+    for (var i = 0; i < 2; i++) if (this.hocSapThu(i)) kieu[i] = kieuNguoc(kieu[i]);
     return kieu;
   };
 
   // Chốt kế hoạch mới theo số đếm lúc này. Số thứ tự chu_ki đếm số lần chốt (thích ứng: số lượt).
   DieuKhien.prototype.chuKiMoi = function (t) {
-    this.hocCuoiChuKi();
+    this.hocCuoiLuot(t);
     var s = [0, 0, 0, 0, 0], l = [0, 0, 0, 0, 0], hop_le = [false, false, false, false, false];
     for (var h = 1; h <= 4; h++) {
       s[h] = this.dem[h].s; l[h] = this.dem[h].l; hop_le[h] = this.conHan(h, t);
     }
-    this.kh = QD.lapKeHoach(this.ts, s, l, hop_le, this.kieuChoChuKi(), this.truc_ke);
+    var kieu = this.kieuChoChuKi();
+    this.kh = QD.lapKeHoach(this.ts, s, l, hop_le, kieu, this.truc_ke);
     this.che_do_kh = this.ts.che_do;
-    if (this.che_do_kh === QD.CHE_DO_THICH_UNG) this.truc_ke = 1 - QD.trucCuaMatNa(this.kh[0].mat_na);
+    if (this.che_do_kh === QD.CHE_DO_THICH_UNG) {
+      var truc = QD.trucCuaMatNa(this.kh[0].mat_na);
+      this.truc_ke = 1 - truc;
+      this.hocDauLuot(truc, kieu[truc], s, l, hop_le);
+    }
     this.chu_ki++;
     this.i_buoc = 0;
     this.baoSuKien('chu_ki', null);
@@ -219,6 +221,7 @@
 
   // Sang bước kế của kế hoạch. Khi bật cắt sớm, bước nào không còn xe thì bỏ qua.
   DieuKhien.prototype.buocKe = function (t) {
+    this.hocCuoiBuoc(t);
     var i = this.i_buoc + 1;
     if (this.duocCatSom()) {
       while (i < this.kh.length && this.nhuCauBuoc(i, t) === 0) i++;
@@ -235,6 +238,7 @@
   DieuKhien.prototype.batDauUuTien = function (h, t) {
     this.ut_huong = h; this.ut_bat_dau = t; this.ut_thay = t;
     this.i_buoc = -1;
+    this.hoc.l_hong = true;       // lượt bị xe ưu tiên cắt ngang: tự học không tính lượt này
     this.baoSuKien('uu_tien', h);
     this.chuyenSang(QD.matNaRieng(h), 0, t);
   };
@@ -318,7 +322,7 @@
 
   // Gọi thường xuyên với thời gian hiện tại (ms).
   DieuKhien.prototype.capNhat = function (t) {
-    this.hocTichLuy(t);
+    this.hocTheoDoi(t);
     for (var i = 0; i < 16 && !this.loi; i++) {
       if (!this.motBuoc(t)) break;
     }
@@ -326,104 +330,150 @@
 
   // ============================== Tự học kiểu chia pha ==============================
   // Camera không biết xe ở làn trong sẽ đi thẳng hay rẽ trái, nên không tính trước được kiểu chia
-  // pha nào tốt hơn. Bộ điều khiển vì vậy học bằng cách thử:
-  //   1. Đo "thời gian chờ trung bình mỗi xe" của kiểu đang giữ trong một cửa sổ. Cửa sổ dài ít
-  //      nhất hoc_so_chu_ki vòng (mỗi vòng gồm lượt dọc và lượt ngang) và phải có ít nhất hoc_so_xe xe đi qua.
-  //      Cách đo chỉ dùng số đếm của camera: cộng dồn (tổng số xe 4 camera đang thấy × thời gian)
-  //      được số xe·giây chờ; mỗi lần số đếm của một làn tăng hay giảm 1 là một lượt xe vào hoặc ra,
-  //      nên số xe đi qua = số lượt / 2. Chia hai số cho nhau ra thời gian mỗi xe nằm trong vùng camera.
-  //   2. Đổi kiểu chia pha của MỘT trục, chạy thử một cửa sổ, đo lại.
-  //   3. Kiểu thử tốt hơn thì giữ, không thì trả về kiểu cũ; lần thử sau của trục đó lùi xa dần
-  //      (2, 4, 8, 16 cửa sổ) để không tốn thời gian vào kiểu đã biết là kém.
-  // Hai kiểu được thử là "riêng từng hướng" và "cùng đi thẳng trước". Kiểu "riêng từng hướng" chạy
-  // ổn dù nhiều hay ít xe rẽ trái nên được ưu ái: muốn sang "thẳng trước" thì thời gian chờ phải
-  // giảm ít nhất hoc_nguong %, còn muốn về "riêng" chỉ cần không tăng quá hoc_nguong %.
-  // Điểm là thời gian chờ trung bình mỗi xe, tính bằng mili giây.
+  // pha nào tốt hơn. Bộ điều khiển học bằng cách đo từng LƯỢT của từng trục, chỉ dùng số đếm camera:
+  //   - Thời gian đèn có ích của một lượt: E = tổng (thời gian xanh của mỗi bước, tính tới lúc các làn
+  //     của bước đó hết xe) + số bước × (vàng + đỏ toàn phần + thời gian chờ cắt sớm).
+  //   - Số xe đã qua vạch dừng trong lượt: mỗi lần số đếm của một làn giảm 1 là một xe.
+  //   - Lượt chạy kiểu "riêng" cho mốc so sánh b = (thời gian xanh) / (số xe), ms mỗi xe. Giữ hai mốc:
+  //     b[0] cho lượt xả hết xe, b[1] cho lượt quá tải (có bước hết giờ mà vẫn còn xe), vì hai loại
+  //     lượt này chạy với nhịp xả khác hẳn nhau và chỉ nên so với lượt cùng loại.
+  //   - Lượt chạy kiểu "thẳng trước" cho điểm q = E × 100 / (thời gian mà kiểu riêng cần cho cùng
+  //     số xe) = E × 100 / (2 bước × thời gian chuyển + b × số xe). q dưới 100 là thẳng trước nhanh hơn.
+  // Luật chọn, riêng cho từng trục:
+  //   - Đang giữ "riêng": cứ hoc_cach_thu lượt thì chạy thử một lượt "thẳng trước". Lần thử có
+  //     q ≤ 100 − hoc_nguong thì lượt sau thử tiếp; trung bình hai lần vẫn đạt thì đổi sang "thẳng
+  //     trước". Lần thử kém rõ (q ≥ 100 + hoc_nguong) thì giãn khoảng cách thử ra gấp đôi, tối đa 2 lần
+  //     mức đầu; lần thử không đạt mà không kém rõ thì về mức đầu.
+  //   - Đang giữ "thẳng trước": mỗi lượt cập nhật điểm Q (trung bình trượt của q). Q ≥ 100 + hoc_nguong / 2
+  //     thì trả về "riêng". Thỉnh thoảng chạy một lượt "riêng" để làm mới mốc b: cách hoc_cach_thu
+  //     lượt khi Q còn gần 100, cách 4 lần mức đó khi Q đã thấp rõ.
+  //   - Lúc quá tải, thử sai rất tốn (hàng xe dài thêm và lâu tan) nên đòi bằng chứng mạnh hơn: lượt thử
+  //     quá tải phải đạt q ≤ 100 − 2 × hoc_nguong, không đạt là giãn khoảng cách thử (tối đa 4 lần mức
+  //     đầu); đang giữ "thẳng trước" mà lượt quá tải có Q ≥ 100 là trả về "riêng".
+  //   - Lượt có xe ưu tiên, thiếu camera, hoặc quá ít xe thì không tính. Khi hàng xe luôn đầy vùng
+  //     camera và số đếm không nhúc nhích thì không đếm được xe qua, bộ tự học giữ nguyên kiểu đang có.
+  // Kiểu "đối xứng" không được thử: làn trong đi chung thẳng và trái nên thử sai là kẹt cả ngã tư.
   DieuKhien.prototype.hocMoi = function () {
+    var cach = this.ts.hoc_cach_thu > 0 ? this.ts.hoc_cach_thu : 1;
     return {
       kieu: [QD.KIEU_RIENG, QD.KIEU_RIENG],   // kiểu đang giữ của trục dọc, trục ngang
-      dang_thu: false, truc_thu: 0,           // đang chạy thử: trục truc_thu dùng kiểu ngược với kiểu đang giữ
-      thu_ke: 0,                              // trục được ưu tiên thử ở lần tới
-      cho: [1, 2],                            // còn mấy cửa sổ đo nữa thì tới lượt thử trục đó
-      lui: [LUI_DAU, LUI_DAU],
-      diem_giu: -1, diem_thu: -1,             // điểm của kiểu đang giữ và của lần thử gần nhất
-      tich: 0, tg: 0, luot: 0, so_ck: 0, hong: false   // cửa sổ đang đo: xe·ms, ms, số lượt xe vào/ra, số lần chốt kế hoạch; hỏng = phải đo lại
+      b: [-1, -1],                            // mốc của kiểu riêng (ms xanh mỗi xe): [lượt xả hết, lượt quá tải]; -1 = chưa đo
+      q: [-1, -1],                            // điểm của "thẳng trước" so với "riêng" ở từng trục (%); -1 = chưa đo
+      dem: [cach > 1 ? cach - 1 : 0, cach > 2 ? cach - 2 : 0],   // số lượt đã đo kể từ lần thử gần nhất (hai trục lệch nhau một lượt)
+      cach: [cach, cach],                     // cách mấy lượt thì thử "thẳng trước" một lần
+      lien: [0, 0],                           // số lần thử liên tiếp đạt
+      tuoi: [0, 0],                           // số lượt "thẳng trước" kể từ lần gần nhất có lượt "riêng" để lấy mốc
+      // lượt đang chạy
+      l_truc: -1, l_kieu: 0,                  // trục và kiểu của lượt (l_truc = -1: không theo dõi)
+      l_do: false,                            // lượt đo được: cả hai hướng có xe và làn trong có xe, tức kế hoạch có phụ thuộc kiểu
+      l_thu: false,                           // lượt chạy kiểu khác kiểu đang giữ
+      l_hong: false,                          // có xe ưu tiên hoặc thiếu camera
+      l_qt: false,                            // quá tải: có bước hết giờ mà vẫn còn xe
+      l_g: 0, l_n: 0,                         // tổng thời gian xanh tới lúc hết xe (ms), số bước đã chạy
+      ra: [0, 0],                             // số xe đã qua vạch dừng của trục dọc, trục ngang trong lượt
+      b_trong: false, b_trong_tu: 0           // bước đang xanh hiện không còn xe, kể từ lúc nào
     };
   };
 
   DieuKhien.prototype.hocDangBat = function () {
-    return this.ts.che_do === QD.CHE_DO_THICH_UNG && this.ts.kieu_pha === QD.KIEU_TU_HOC && this.ts.hoc_so_chu_ki > 0;
+    return this.ts.che_do === QD.CHE_DO_THICH_UNG && this.ts.kieu_pha === QD.KIEU_TU_HOC && this.ts.hoc_cach_thu > 0;
   };
 
-  // Cộng dồn hàng chờ từ lần gọi trước tới lúc t. Cửa sổ có xe ưu tiên hoặc thiếu camera thì bỏ.
-  DieuKhien.prototype.hocTichLuy = function (t) {
-    var dt = t - this.t_tich, hc = this.hoc;
-    this.t_tich = t;
-    if (!this.hocDangBat()) { hc.hong = true; return; }
-    if (dt <= 0) return;
-    if (this.ut_huong) hc.hong = true;
-    var q = 0;
-    for (var h = 1; h <= 4; h++) {
-      if (!this.conHan(h, t)) hc.hong = true;
-      else q += this.dem[h].s + this.dem[h].l;
-    }
-    hc.tich += q * dt; hc.tg += dt;
+  // Lượt sắp tới của trục k có chạy kiểu khác kiểu đang giữ không (thử "thẳng trước", hoặc làm mới mốc "riêng").
+  DieuKhien.prototype.hocSapThu = function (k) {
+    var hc = this.hoc, cach = this.ts.hoc_cach_thu;
+    if (!this.hocDangBat()) return false;
+    if (hc.kieu[k] === QD.KIEU_RIENG) return hc.dem[k] >= hc.cach[k] && (hc.b[0] >= 0 || hc.b[1] >= 0);
+    return hc.tuoi[k] >= (hc.q[k] >= 0 && hc.q[k] < 100 - 2 * this.ts.hoc_nguong ? 4 * cach : cach);
   };
 
-  DieuKhien.prototype.hocCuaSoMoi = function () {
+  // Gọi mỗi nhịp, trước khi xét chuyển đèn: đánh dấu lượt hỏng, và ghi lúc bước đang xanh hết xe.
+  DieuKhien.prototype.hocTheoDoi = function (t) {
     var hc = this.hoc;
-    hc.tich = 0; hc.tg = 0; hc.luot = 0; hc.so_ck = 0; hc.hong = false;
+    if (hc.l_truc < 0) return;
+    if (!this.hocDangBat() || this.ut_huong) { hc.l_hong = true; return; }
+    for (var h = 1; h <= 4; h++) if (!this.conHan(h, t)) hc.l_hong = true;
+    if (this.pha === PHA_XANH && this.i_buoc >= 0) {
+      if (this.nhuCauBuoc(this.i_buoc, t) === 0) {
+        if (!hc.b_trong) { hc.b_trong = true; hc.b_trong_tu = t; }
+      } else hc.b_trong = false;
+    }
   };
 
-  // Gọi mỗi lần sắp chốt kế hoạch mới.
-  DieuKhien.prototype.hocCuoiChuKi = function () {
-    var hc = this.hoc, n = this.ts.hoc_so_chu_ki, truc, moi;
-    if (!this.hocDangBat()) return;
-    if (hc.hong || hc.tg === 0) {              // cửa sổ hỏng: bỏ, đang thử thì quay về kiểu đang giữ
-      if (hc.dang_thu) { hc.dang_thu = false; this.baoSuKien('hoc_huy', hc.truc_thu); }
-      this.hocCuaSoMoi();
-      return;
+  // Bắt đầu theo dõi một lượt của trục truc, chạy kiểu kieu.
+  DieuKhien.prototype.hocDauLuot = function (truc, kieu, s, l, hop_le) {
+    var hc = this.hoc, a = truc ? 2 : 1, b = a + 2;
+    hc.l_truc = truc; hc.l_kieu = kieu;
+    hc.l_hong = false; hc.l_qt = false; hc.l_g = 0; hc.l_n = 0; hc.ra[0] = 0; hc.ra[1] = 0; hc.b_trong = false;
+    hc.l_do = this.hocDangBat() && hop_le[a] && hop_le[b] && s[a] + l[a] > 0 && s[b] + l[b] > 0 && (l[a] > 0 || l[b] > 0);
+    hc.l_thu = hc.l_do && kieu !== hc.kieu[truc];
+    if (hc.l_thu) this.baoSuKien('hoc_thu', truc * 4 + kieu);
+  };
+
+  // Hết một bước (do cắt sớm hoặc hết giờ): cộng thời gian xanh của bước, tính tới lúc hết xe.
+  DieuKhien.prototype.hocCuoiBuoc = function (t) {
+    var hc = this.hoc;
+    if (hc.l_truc >= 0 && this.i_buoc >= 0) {
+      var trong = hc.b_trong && hc.b_trong_tu >= this.t_xanh_tu;
+      if (!trong) hc.l_qt = true;
+      hc.l_g += (trong ? hc.b_trong_tu : t) - this.t_xanh_tu;
+      hc.l_n++;
     }
-    hc.so_ck++;
-    var so_xe = this.ts.hoc_so_xe > 0 ? this.ts.hoc_so_xe : 1, ng = this.ts.hoc_nguong;
-    var du = hc.so_ck >= 2 * n && hc.luot >= 2 * so_xe;   // một vòng = 2 lượt; một xe = 2 lượt vào/ra
-    // Thời gian chờ trung bình mỗi xe (ms) = 2 × xe·ms / số lượt vào ra. Khi mới có ít xe qua thì chia
-    // cho so_xe, tức là tính như đã có ít nhất nửa số xe cần có: điểm lúc đó chỉ có thể thấp hơn thực tế.
-    var diem = chiaNguyen(hc.tich * 2, hc.luot > so_xe ? hc.luot : so_xe);
-    if (hc.dang_thu) {
-      truc = hc.truc_thu; moi = kieuNguoc(hc.kieu[truc]);
-      // Dừng thử sớm, không chờ đủ cửa sổ, khi kiểu thử đang kém rõ: chờ lâu hơn kiểu đang giữ quá
-      // hoc_nguong % (thử "thẳng trước") hoặc quá 2 lần mức đó (thử "riêng"). Nhờ vậy một lần thử
-      // hỏng chỉ tốn chừng một vòng.
-      var kem = diem * 100 > hc.diem_giu * (moi === QD.KIEU_THANG_TRUOC ? 100 + ng : 100 + 2 * ng);
-      if (!du && (!kem || hc.so_ck % 2 !== 0)) return;   // chỉ xét dừng sớm khi vừa xong trọn một vòng
-      var nhan = !kem && diem * 100 <= hc.diem_giu * (moi === QD.KIEU_THANG_TRUOC ? 100 - ng : 100 + ng);
-      hc.diem_thu = diem;
-      hc.dang_thu = false;
-      if (nhan) {
-        hc.kieu[truc] = moi; hc.diem_giu = diem; hc.lui[truc] = LUI_DAU;
-      } else {
-        hc.lui[truc] = hc.lui[truc] * 2 > LUI_TOI_DA ? LUI_TOI_DA : hc.lui[truc] * 2;
+    hc.b_trong = false;
+  };
+
+  DieuKhien.prototype.hocDoiKieu = function (k, kieu) {
+    var hc = this.hoc;
+    hc.kieu[k] = kieu; hc.lien[k] = 0; hc.dem[k] = 0; hc.tuoi[k] = 0;
+    hc.cach[k] = this.ts.hoc_cach_thu;
+    this.baoSuKien('hoc_nhan', k * 4 + kieu);
+  };
+
+  // Gọi mỗi lần sắp chốt kế hoạch mới: chấm lượt vừa chạy xong.
+  DieuKhien.prototype.hocCuoiLuot = function (t) {
+    var hc = this.hoc, ts = this.ts;
+    if (hc.l_truc >= 0 && hc.l_do) {
+      var k = hc.l_truc, ra = hc.ra[k], ng = ts.hoc_nguong, cach = ts.hoc_cach_thu;
+      if (!this.hocDangBat() || hc.l_hong) {
+        if (hc.l_thu) this.baoSuKien('hoc_huy', k);
+      } else if (ra > 0 && ra >= ts.hoc_so_xe && hc.l_n > 0) {
+        var c = ts.t_vang + ts.t_do + ts.cat_som, i = hc.l_qt ? 1 : 0;
+        if (hc.l_kieu === QD.KIEU_RIENG) {
+          var bx = chiaNguyen(hc.l_g, ra);
+          hc.b[i] = hc.b[i] < 0 ? bx : chiaNguyen(hc.b[i] + bx, 2);
+          hc.tuoi[0] = 0; hc.tuoi[1] = 0;
+          if (hc.kieu[k] === QD.KIEU_RIENG) hc.dem[k]++;
+        } else {
+          var mau = hc.b[i] < 0 ? 0 : 2 * c + hc.b[i] * ra;   // thời gian kiểu riêng cần cho cùng số xe
+          hc.tuoi[k]++;
+          if (mau <= 0) {
+            // chưa có mốc "riêng" cùng loại để so: đang giữ "thẳng trước" thì lượt sau chạy "riêng" để lấy mốc
+            if (hc.kieu[k] !== QD.KIEU_RIENG) hc.tuoi[k] = 4 * cach;
+          } else {
+            var q = chiaNguyen((hc.l_g + hc.l_n * c) * 100, mau);
+            if (hc.kieu[k] !== QD.KIEU_RIENG) {            // đang giữ "thẳng trước"
+              hc.q[k] = hc.q[k] < 0 ? q : chiaNguyen(hc.q[k] * 3 + q, 4);
+              if (hc.l_qt ? hc.q[k] >= 100 : hc.q[k] * 2 >= 200 + ng) this.hocDoiKieu(k, QD.KIEU_RIENG);
+            } else {                                       // lượt thử khi đang giữ "riêng"
+              hc.q[k] = hc.lien[k] === 0 ? q : chiaNguyen(hc.q[k] + q, 2);
+              if (hc.q[k] <= (hc.l_qt ? 100 - 2 * ng : 100 - ng)) {
+                hc.lien[k]++;
+                if (hc.lien[k] >= 2) this.hocDoiKieu(k, QD.KIEU_THANG_TRUOC);
+                else hc.dem[k] = hc.cach[k];               // đạt lần đầu: lượt sau của trục này thử tiếp
+              } else {
+                hc.lien[k] = 0; hc.dem[k] = 0;
+                if (hc.l_qt || q >= 100 + ng) {
+                  var tran = (hc.l_qt ? 4 : 2) * cach;
+                  hc.cach[k] = hc.cach[k] * 2 > tran ? tran : hc.cach[k] * 2;
+                } else hc.cach[k] = cach;
+                this.baoSuKien('hoc_tra', k * 4 + QD.KIEU_THANG_TRUOC);
+              }
+            }
+          }
+        }
       }
-      hc.cho[truc] = hc.lui[truc];
-      this.hocCuaSoMoi();
-      this.baoSuKien(nhan ? 'hoc_nhan' : 'hoc_tra', truc * 4 + moi);
-      return;
     }
-    if (!du) return;
-    // Sắp tới lượt thử trục nào? Lần thử phải bắt đầu đúng vào lượt của trục đó, nên nếu lượt sắp
-    // chốt là của trục kia thì đo thêm một lượt nữa rồi mới đóng cửa sổ.
-    truc = -1;
-    if (hc.cho[hc.thu_ke] <= 1) truc = hc.thu_ke;
-    else if (hc.cho[1 - hc.thu_ke] <= 1) truc = 1 - hc.thu_ke;
-    if (truc >= 0 && this.truc_ke !== truc) return;
-    // xong một cửa sổ đo kiểu đang giữ: điểm mới lấy trung bình với điểm cũ cho đỡ dao động
-    hc.diem_giu = hc.diem_giu < 0 ? diem : chiaNguyen(hc.diem_giu + diem, 2);
-    this.hocCuaSoMoi();
-    for (var i = 0; i < 2; i++) if (hc.cho[i] > 0) hc.cho[i]--;
-    if (truc < 0) return;
-    hc.dang_thu = true; hc.truc_thu = truc; hc.thu_ke = 1 - truc;
-    this.baoSuKien('hoc_thu', truc * 4 + kieuNguoc(hc.kieu[truc]));
+    hc.l_truc = -1; hc.l_do = false; hc.l_thu = false;
   };
 
   // Màu của nhóm g (0..7) lúc t. Khi có lỗi an toàn: mọi nhóm nháy vàng.

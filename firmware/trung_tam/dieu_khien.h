@@ -23,10 +23,10 @@
 #define SK_HET_UU_TIEN 4   // hết ưu tiên (dl = hướng)
 #define SK_LOI 5           // lỗi an toàn
 #define SK_CAT_SOM 6       // cắt xanh sớm vì tổ hợp đang xanh hết xe (dl = mặt nạ tổ hợp bị cắt)
-#define SK_HOC_THU 7       // tự học: bắt đầu thử (dl = trục * 4 + kiểu được thử)
-#define SK_HOC_NHAN 8      // tự học: kiểu thử tốt hơn, giữ lại (dl như trên)
-#define SK_HOC_TRA 9       // tự học: kiểu thử không hơn, trả về kiểu cũ (dl như trên)
-#define SK_HOC_HUY 10      // tự học: bỏ lần thử vì có xe ưu tiên hoặc thiếu camera (dl = trục)
+#define SK_HOC_THU 7       // tự học: một lượt chạy kiểu khác kiểu đang giữ (dl = trục * 4 + kiểu của lượt đó)
+#define SK_HOC_NHAN 8      // tự học: trục đổi sang kiểu mới (dl = trục * 4 + kiểu mới)
+#define SK_HOC_TRA 9       // tự học: lượt thử "thẳng trước" không đạt, vẫn giữ "riêng" (dl như trên)
+#define SK_HOC_HUY 10      // tự học: bỏ lượt thử vì có xe ưu tiên hoặc thiếu camera (dl = trục)
 
 // Loại xe ưu tiên, cũng là thứ tự ưu tiên "hỏa → sự → công → thương": số nhỏ hơn đi trước.
 #define UT_KHONG 0
@@ -34,9 +34,6 @@
 #define UT_QUAN_SU 2
 #define UT_CONG_AN 3
 #define UT_CUU_THUONG 4
-
-#define HOC_LUI_DAU 2      // tự học: số cửa sổ đo phải chờ giữa hai lần thử cùng một trục...
-#define HOC_LUI_TOI_DA 16  // ... tăng gấp đôi sau mỗi lần thử hỏng, tối đa chừng này
 
 struct SoDem {
   uint8_t s, l, emg;
@@ -47,21 +44,27 @@ struct SoDem {
   uint32_t emg_tu;         // lúc bắt đầu thấy xe ưu tiên
 };
 
-// Trạng thái của bộ tự học kiểu chia pha
+// Trạng thái của bộ tự học kiểu chia pha (giải thích ở phần "Tự học" cuối file)
 struct Hoc {
   uint8_t kieu[2];         // kiểu đang giữ của trục dọc, trục ngang
-  bool dang_thu;           // đang chạy thử: trục truc_thu dùng kiểu ngược với kiểu đang giữ
-  uint8_t truc_thu;
-  uint8_t thu_ke;          // trục được ưu tiên thử ở lần tới
-  uint8_t cho[2];          // còn mấy cửa sổ đo nữa thì tới lượt thử trục đó
-  uint8_t lui[2];
-  int64_t diem_giu;        // thời gian chờ trung bình mỗi xe (ms) của kiểu đang giữ; -1 nếu chưa đo
-  int64_t diem_thu;        // ... của lần thử gần nhất
-  uint64_t tich;           // cửa sổ đang đo: tổng (số xe đang chờ × thời gian), xe·ms
-  uint64_t tg;             //   thời gian đã đo, ms
-  uint32_t luot;           //   số lượt xe vào hoặc ra vùng camera
-  uint32_t so_ck;          //   số lần chốt kế hoạch
-  bool hong;               //   cửa sổ hỏng, phải đo lại
+  int64_t b[2];            // mốc của kiểu riêng (ms xanh mỗi xe): [lượt xả hết, lượt quá tải]; -1 = chưa đo
+  int64_t q[2];            // điểm của "thẳng trước" so với "riêng" ở từng trục (%); -1 = chưa đo
+  uint32_t dem[2];         // số lượt đã đo kể từ lần thử gần nhất
+  uint32_t cach[2];        // cách mấy lượt thì thử "thẳng trước" một lần
+  uint8_t lien[2];         // số lần thử liên tiếp đạt
+  uint32_t tuoi[2];        // số lượt "thẳng trước" kể từ lần gần nhất có lượt "riêng" để lấy mốc
+  // lượt đang chạy
+  int8_t l_truc;           // trục của lượt (-1: không theo dõi)
+  uint8_t l_kieu;          // kiểu của lượt
+  bool l_do;               // lượt đo được: cả hai hướng có xe và làn trong có xe, tức kế hoạch có phụ thuộc kiểu
+  bool l_thu;              // lượt chạy kiểu khác kiểu đang giữ
+  bool l_hong;             // có xe ưu tiên hoặc thiếu camera
+  bool l_qt;               // quá tải: có bước hết giờ mà vẫn còn xe
+  uint64_t l_g;            // tổng thời gian xanh tới lúc hết xe (ms)
+  uint32_t l_n;            // số bước đã chạy
+  uint32_t ra[2];          // số xe đã qua vạch dừng của trục dọc, trục ngang trong lượt
+  bool b_trong;            // bước đang xanh hiện không còn xe...
+  uint32_t b_trong_tu;     // ... kể từ lúc này
 };
 
 // a đã tới hoặc qua b (so sánh an toàn khi bộ đếm thời gian quay vòng)
@@ -92,7 +95,6 @@ public:
   uint32_t ut_bat_dau;
   uint32_t ut_thay;        // lần cuối còn thấy xe ưu tiên
   uint8_t truc_ke;         // lượt kế là của trục nào (0 dọc, 1 ngang)
-  uint32_t t_tich;         // tự học: đã cộng dồn hàng chờ tới thời điểm này
   Hoc hoc;
   bool loi;
   void (*khiSuKien)(uint8_t loai, uint8_t dl);
@@ -106,7 +108,7 @@ public:
     pha = PHA_KHOI_DONG; xanh = 0; vang = 0; dich = 0; dich_xanh = 0;
     t_het = 0; t_xanh_tu = 0; kh.so_buoc = 0; che_do_kh = CHE_DO_CO_DINH; i_buoc = -1; chu_ki = 0;
     dang_trong = false; t_trong_tu = 0;
-    ut_huong = 0; ut_bat_dau = 0; ut_thay = 0; truc_ke = 0; t_tich = 0; loi = false; khiSuKien = 0;
+    ut_huong = 0; ut_bat_dau = 0; ut_thay = 0; truc_ke = 0; loi = false; khiSuKien = 0;
     hocMoi();
   }
 
@@ -116,7 +118,6 @@ public:
     kh.so_buoc = 0; i_buoc = -1; chu_ki = 0; ut_huong = 0;
     dang_trong = false;
     truc_ke = 0;
-    t_tich = t;
     hocMoi();
     t_het = t + ts->t_do;
   }
@@ -136,8 +137,8 @@ public:
     if (ut != 0 && emg == 0) emg = 1;
     if (ut != 0 && (!d.co || d.ut == 0)) d.emg_tu = t;
     if (ut == 0) ut_khoa[id] = false;
-    // tự học: mỗi lần số đếm của một làn tăng hay giảm 1 là một lượt xe vào hoặc ra vùng camera
-    if (d.co) hoc.luot += (uint32_t)((s > d.s ? s - d.s : d.s - s) + (l > d.l ? l - d.l : d.l - l));
+    // tự học: số đếm của một làn giảm 1 là một xe vừa qua vạch dừng; cộng cho trục của hướng đó
+    if (d.co) hoc.ra[(id - 1) & 1] += (uint32_t)((d.s > s ? d.s - s : 0) + (d.l > l ? d.l - l : 0));
     d.s = (uint8_t)s; d.l = (uint8_t)l; d.emg = (uint8_t)emg; d.ut = (uint8_t)ut;
     d.t_nhan = t; d.co = true; d.giu = giu;
     return true;
@@ -200,12 +201,12 @@ public:
     uint32_t k = ts->kieu_pha;
     if (k != KIEU_TU_HOC) { ra[0] = ra[1] = (uint8_t)((k == KIEU_THANG_TRUOC || k == KIEU_DOI_XUNG) ? k : KIEU_RIENG); return; }
     ra[0] = hoc.kieu[0]; ra[1] = hoc.kieu[1];
-    if (hoc.dang_thu) ra[hoc.truc_thu] = kieuNguoc(ra[hoc.truc_thu]);
+    for (int i = 0; i < 2; i++) if (hocSapThu(i)) ra[i] = kieuNguoc(ra[i]);
   }
 
   // Chốt kế hoạch mới theo số đếm lúc này. Số thứ tự chu_ki đếm số lần chốt (thích ứng: số lượt).
   void chuKiMoi(uint32_t t) {
-    hocCuoiChuKi();
+    hocCuoiLuot(t);
     uint8_t s[5] = {0, 0, 0, 0, 0}, l[5] = {0, 0, 0, 0, 0};
     bool hop_le[5] = {false, false, false, false, false};
     for (int h = 1; h <= 4; h++) {
@@ -215,7 +216,11 @@ public:
     kieuChoChuKi(kieu);
     kh = lapKeHoach(*ts, s, l, hop_le, kieu, truc_ke);
     che_do_kh = ts->che_do;
-    if (che_do_kh == CHE_DO_THICH_UNG) truc_ke = (uint8_t)(1 - trucCuaMatNa(kh.buoc[0].mat_na));
+    if (che_do_kh == CHE_DO_THICH_UNG) {
+      uint8_t truc = trucCuaMatNa(kh.buoc[0].mat_na);
+      truc_ke = (uint8_t)(1 - truc);
+      hocDauLuot(truc, kieu[truc], s, l, hop_le);
+    }
     chu_ki++;
     i_buoc = 0;
     baoSuKien(SK_CHU_KI, 0);
@@ -276,6 +281,7 @@ public:
 
   // Sang bước kế của kế hoạch. Khi bật cắt sớm, bước nào không còn xe thì bỏ qua.
   void buocKe(uint32_t t) {
+    hocCuoiBuoc(t);
     int i = i_buoc + 1;
     if (duocCatSom()) {
       while (i < (int)kh.so_buoc && nhuCauBuoc(i, t) == 0) i++;
@@ -292,6 +298,7 @@ public:
   void batDauUuTien(int h, uint32_t t) {
     ut_huong = (uint8_t)h; ut_bat_dau = t; ut_thay = t;
     i_buoc = -1;
+    hoc.l_hong = true;     // lượt bị xe ưu tiên cắt ngang: tự học không tính lượt này
     baoSuKien(SK_UU_TIEN, (uint8_t)h);
     chuyenSang(matNaRieng(h), 0, t);
   }
@@ -375,7 +382,7 @@ public:
 
   // Gọi thường xuyên với thời gian hiện tại (ms).
   void capNhat(uint32_t t) {
-    hocTichLuy(t);
+    hocTheoDoi(t);
     for (int i = 0; i < 16 && !loi; i++) {
       if (!motBuoc(t)) break;
     }
@@ -383,103 +390,146 @@ public:
 
   // ============================== Tự học kiểu chia pha ==============================
   // Camera không biết xe ở làn trong sẽ đi thẳng hay rẽ trái, nên không tính trước được kiểu chia
-  // pha nào tốt hơn. Bộ điều khiển vì vậy học bằng cách thử:
-  //   1. Đo "thời gian chờ trung bình mỗi xe" của kiểu đang giữ trong một cửa sổ. Cửa sổ dài ít
-  //      nhất hoc_so_chu_ki vòng (mỗi vòng gồm lượt dọc và lượt ngang) và phải có ít nhất hoc_so_xe xe đi qua.
-  //      Cách đo chỉ dùng số đếm của camera: cộng dồn (tổng số xe 4 camera đang thấy × thời gian)
-  //      được số xe·giây chờ; mỗi lần số đếm của một làn tăng hay giảm 1 là một lượt xe vào hoặc ra,
-  //      nên số xe đi qua = số lượt / 2. Chia hai số cho nhau ra thời gian mỗi xe nằm trong vùng camera.
-  //   2. Đổi kiểu chia pha của MỘT trục, chạy thử một cửa sổ, đo lại.
-  //   3. Kiểu thử tốt hơn thì giữ, không thì trả về kiểu cũ; lần thử sau của trục đó lùi xa dần
-  //      (2, 4, 8, 16 cửa sổ) để không tốn thời gian vào kiểu đã biết là kém.
-  // Hai kiểu được thử là "riêng từng hướng" và "cùng đi thẳng trước". Kiểu "riêng từng hướng" chạy
-  // ổn dù nhiều hay ít xe rẽ trái nên được ưu ái: muốn sang "thẳng trước" thì thời gian chờ phải
-  // giảm ít nhất hoc_nguong %, còn muốn về "riêng" chỉ cần không tăng quá hoc_nguong %.
-  // Điểm là thời gian chờ trung bình mỗi xe, tính bằng mili giây.
+  // pha nào tốt hơn. Bộ điều khiển học bằng cách đo từng LƯỢT của từng trục, chỉ dùng số đếm camera:
+  //   - Thời gian đèn có ích của một lượt: E = tổng (thời gian xanh của mỗi bước, tính tới lúc các làn
+  //     của bước đó hết xe) + số bước × (vàng + đỏ toàn phần + thời gian chờ cắt sớm).
+  //   - Số xe đã qua vạch dừng trong lượt: mỗi lần số đếm của một làn giảm 1 là một xe.
+  //   - Lượt chạy kiểu "riêng" cho mốc so sánh b = (thời gian xanh) / (số xe), ms mỗi xe. Giữ hai mốc:
+  //     b[0] cho lượt xả hết xe, b[1] cho lượt quá tải (có bước hết giờ mà vẫn còn xe), vì hai loại
+  //     lượt này chạy với nhịp xả khác hẳn nhau và chỉ nên so với lượt cùng loại.
+  //   - Lượt chạy kiểu "thẳng trước" cho điểm q = E × 100 / (thời gian mà kiểu riêng cần cho cùng
+  //     số xe) = E × 100 / (2 bước × thời gian chuyển + b × số xe). q dưới 100 là thẳng trước nhanh hơn.
+  // Luật chọn, riêng cho từng trục:
+  //   - Đang giữ "riêng": cứ hoc_cach_thu lượt thì chạy thử một lượt "thẳng trước". Lần thử có
+  //     q ≤ 100 − hoc_nguong thì lượt sau thử tiếp; trung bình hai lần vẫn đạt thì đổi sang "thẳng
+  //     trước". Lần thử kém rõ (q ≥ 100 + hoc_nguong) thì giãn khoảng cách thử ra gấp đôi, tối đa 2 lần
+  //     mức đầu; lần thử không đạt mà không kém rõ thì về mức đầu.
+  //   - Đang giữ "thẳng trước": mỗi lượt cập nhật điểm Q (trung bình trượt của q). Q ≥ 100 + hoc_nguong / 2
+  //     thì trả về "riêng". Thỉnh thoảng chạy một lượt "riêng" để làm mới mốc b: cách hoc_cach_thu
+  //     lượt khi Q còn gần 100, cách 4 lần mức đó khi Q đã thấp rõ.
+  //   - Lúc quá tải, thử sai rất tốn (hàng xe dài thêm và lâu tan) nên đòi bằng chứng mạnh hơn: lượt thử
+  //     quá tải phải đạt q ≤ 100 − 2 × hoc_nguong, không đạt là giãn khoảng cách thử (tối đa 4 lần mức
+  //     đầu); đang giữ "thẳng trước" mà lượt quá tải có Q ≥ 100 là trả về "riêng".
+  //   - Lượt có xe ưu tiên, thiếu camera, hoặc quá ít xe thì không tính. Khi hàng xe luôn đầy vùng
+  //     camera và số đếm không nhúc nhích thì không đếm được xe qua, bộ tự học giữ nguyên kiểu đang có.
+  // Kiểu "đối xứng" không được thử: làn trong đi chung thẳng và trái nên thử sai là kẹt cả ngã tư.
   void hocMoi() {
+    uint32_t cach = ts->hoc_cach_thu > 0 ? ts->hoc_cach_thu : 1;
     hoc.kieu[0] = KIEU_RIENG; hoc.kieu[1] = KIEU_RIENG;
-    hoc.dang_thu = false; hoc.truc_thu = 0; hoc.thu_ke = 0;
-    hoc.cho[0] = 1; hoc.cho[1] = 2;
-    hoc.lui[0] = HOC_LUI_DAU; hoc.lui[1] = HOC_LUI_DAU;
-    hoc.diem_giu = -1; hoc.diem_thu = -1;
-    hocCuaSoMoi();
+    hoc.b[0] = -1; hoc.b[1] = -1; hoc.q[0] = -1; hoc.q[1] = -1;
+    hoc.dem[0] = cach > 1 ? cach - 1 : 0; hoc.dem[1] = cach > 2 ? cach - 2 : 0;   // hai trục lệch nhau một lượt
+    hoc.cach[0] = cach; hoc.cach[1] = cach;
+    hoc.lien[0] = 0; hoc.lien[1] = 0; hoc.tuoi[0] = 0; hoc.tuoi[1] = 0;
+    hoc.l_truc = -1; hoc.l_kieu = 0;
+    hoc.l_do = false; hoc.l_thu = false; hoc.l_hong = false; hoc.l_qt = false;
+    hoc.l_g = 0; hoc.l_n = 0; hoc.ra[0] = 0; hoc.ra[1] = 0;
+    hoc.b_trong = false; hoc.b_trong_tu = 0;
   }
 
   bool hocDangBat() const {
-    return ts->che_do == CHE_DO_THICH_UNG && ts->kieu_pha == KIEU_TU_HOC && ts->hoc_so_chu_ki > 0;
+    return ts->che_do == CHE_DO_THICH_UNG && ts->kieu_pha == KIEU_TU_HOC && ts->hoc_cach_thu > 0;
   }
 
-  // Cộng dồn hàng chờ từ lần gọi trước tới lúc t. Cửa sổ có xe ưu tiên hoặc thiếu camera thì bỏ.
-  void hocTichLuy(uint32_t t) {
-    uint32_t dt = t - t_tich;
-    t_tich = t;
-    if (!hocDangBat()) { hoc.hong = true; return; }
-    if ((int32_t)dt <= 0) return;
-    if (ut_huong) hoc.hong = true;
-    uint32_t q = 0;
-    for (int h = 1; h <= 4; h++) {
-      if (!conHan(h, t)) hoc.hong = true;
-      else q += (uint32_t)dem[h].s + dem[h].l;
-    }
-    hoc.tich += (uint64_t)q * dt; hoc.tg += dt;
+  // Lượt sắp tới của trục k có chạy kiểu khác kiểu đang giữ không (thử "thẳng trước", hoặc làm mới mốc "riêng").
+  bool hocSapThu(int k) const {
+    uint32_t cach = ts->hoc_cach_thu;
+    if (!hocDangBat()) return false;
+    if (hoc.kieu[k] == KIEU_RIENG) return hoc.dem[k] >= hoc.cach[k] && (hoc.b[0] >= 0 || hoc.b[1] >= 0);
+    bool thap_ro = hoc.q[k] >= 0 && hoc.q[k] < 100 - 2 * (int64_t)ts->hoc_nguong;
+    return hoc.tuoi[k] >= (thap_ro ? 4 * cach : cach);
   }
 
-  void hocCuaSoMoi() {
-    hoc.tich = 0; hoc.tg = 0; hoc.luot = 0; hoc.so_ck = 0; hoc.hong = false;
-  }
-
-  // Gọi mỗi lần sắp chốt kế hoạch mới.
-  void hocCuoiChuKi() {
+  // Gọi mỗi nhịp, trước khi xét chuyển đèn: đánh dấu lượt hỏng, và ghi lúc bước đang xanh hết xe.
+  void hocTheoDoi(uint32_t t) {
     Hoc &hc = hoc;
-    int truc;
-    if (!hocDangBat()) return;
-    if (hc.hong || hc.tg == 0) {             // cửa sổ hỏng: bỏ, đang thử thì quay về kiểu đang giữ
-      if (hc.dang_thu) { hc.dang_thu = false; baoSuKien(SK_HOC_HUY, hc.truc_thu); }
-      hocCuaSoMoi();
-      return;
+    if (hc.l_truc < 0) return;
+    if (!hocDangBat() || ut_huong) { hc.l_hong = true; return; }
+    for (int h = 1; h <= 4; h++) if (!conHan(h, t)) hc.l_hong = true;
+    if (pha == PHA_XANH && i_buoc >= 0) {
+      if (nhuCauBuoc(i_buoc, t) == 0) {
+        if (!hc.b_trong) { hc.b_trong = true; hc.b_trong_tu = t; }
+      } else hc.b_trong = false;
     }
-    hc.so_ck++;
-    uint32_t n = ts->hoc_so_chu_ki, so_xe = ts->hoc_so_xe > 0 ? ts->hoc_so_xe : 1;
-    int64_t ng = (int64_t)ts->hoc_nguong;
-    bool du = hc.so_ck >= 2 * n && hc.luot >= 2 * so_xe;   // một vòng = 2 lượt; một xe = 2 lượt vào/ra
-    // Thời gian chờ trung bình mỗi xe (ms) = 2 × xe·ms / số lượt vào ra. Khi mới có ít xe qua thì chia
-    // cho so_xe, tức là tính như đã có ít nhất nửa số xe cần có: điểm lúc đó chỉ có thể thấp hơn thực tế.
-    int64_t diem = (int64_t)(hc.tich * 2 / (hc.luot > so_xe ? hc.luot : so_xe));
-    if (hc.dang_thu) {
-      truc = hc.truc_thu;
-      uint8_t moi = kieuNguoc(hc.kieu[truc]);
-      // Dừng thử sớm, không chờ đủ cửa sổ, khi kiểu thử đang kém rõ: chờ lâu hơn kiểu đang giữ quá
-      // hoc_nguong % (thử "thẳng trước") hoặc quá 2 lần mức đó (thử "riêng"). Nhờ vậy một lần thử
-      // hỏng chỉ tốn chừng một vòng.
-      bool kem = diem * 100 > hc.diem_giu * (moi == KIEU_THANG_TRUOC ? 100 + ng : 100 + 2 * ng);
-      if (!du && (!kem || hc.so_ck % 2 != 0)) return;   // chỉ xét dừng sớm khi vừa xong trọn một vòng
-      bool nhan = !kem && diem * 100 <= hc.diem_giu * (moi == KIEU_THANG_TRUOC ? 100 - ng : 100 + ng);
-      hc.diem_thu = diem;
-      hc.dang_thu = false;
-      if (nhan) {
-        hc.kieu[truc] = moi; hc.diem_giu = diem; hc.lui[truc] = HOC_LUI_DAU;
-      } else {
-        hc.lui[truc] = (uint8_t)(hc.lui[truc] * 2 > HOC_LUI_TOI_DA ? HOC_LUI_TOI_DA : hc.lui[truc] * 2);
+  }
+
+  // Bắt đầu theo dõi một lượt của trục truc, chạy kiểu kieu.
+  void hocDauLuot(uint8_t truc, uint8_t kieu, const uint8_t s[5], const uint8_t l[5], const bool hop_le[5]) {
+    Hoc &hc = hoc;
+    int a = truc ? 2 : 1, b = a + 2;
+    hc.l_truc = (int8_t)truc; hc.l_kieu = kieu;
+    hc.l_hong = false; hc.l_qt = false; hc.l_g = 0; hc.l_n = 0; hc.ra[0] = 0; hc.ra[1] = 0; hc.b_trong = false;
+    hc.l_do = hocDangBat() && hop_le[a] && hop_le[b] && s[a] + l[a] > 0 && s[b] + l[b] > 0 && (l[a] > 0 || l[b] > 0);
+    hc.l_thu = hc.l_do && kieu != hc.kieu[truc];
+    if (hc.l_thu) baoSuKien(SK_HOC_THU, (uint8_t)(truc * 4 + kieu));
+  }
+
+  // Hết một bước (do cắt sớm hoặc hết giờ): cộng thời gian xanh của bước, tính tới lúc hết xe.
+  void hocCuoiBuoc(uint32_t t) {
+    Hoc &hc = hoc;
+    if (hc.l_truc >= 0 && i_buoc >= 0) {
+      bool trong = hc.b_trong && daToi(hc.b_trong_tu, t_xanh_tu);
+      if (!trong) hc.l_qt = true;
+      hc.l_g += (uint32_t)((trong ? hc.b_trong_tu : t) - t_xanh_tu);
+      hc.l_n++;
+    }
+    hc.b_trong = false;
+  }
+
+  void hocDoiKieu(int k, uint8_t kieu) {
+    hoc.kieu[k] = kieu; hoc.lien[k] = 0; hoc.dem[k] = 0; hoc.tuoi[k] = 0;
+    hoc.cach[k] = ts->hoc_cach_thu;
+    baoSuKien(SK_HOC_NHAN, (uint8_t)(k * 4 + kieu));
+  }
+
+  // Gọi mỗi lần sắp chốt kế hoạch mới: chấm lượt vừa chạy xong.
+  void hocCuoiLuot(uint32_t t) {
+    (void)t;
+    Hoc &hc = hoc;
+    if (hc.l_truc >= 0 && hc.l_do) {
+      int k = hc.l_truc;
+      int64_t ra = hc.ra[k], ng = ts->hoc_nguong;
+      uint32_t cach = ts->hoc_cach_thu;
+      if (!hocDangBat() || hc.l_hong) {
+        if (hc.l_thu) baoSuKien(SK_HOC_HUY, (uint8_t)k);
+      } else if (ra > 0 && ra >= (int64_t)ts->hoc_so_xe && hc.l_n > 0) {
+        int64_t c = (int64_t)ts->t_vang + ts->t_do + ts->cat_som;
+        int i = hc.l_qt ? 1 : 0;
+        if (hc.l_kieu == KIEU_RIENG) {
+          int64_t bx = (int64_t)hc.l_g / ra;
+          hc.b[i] = hc.b[i] < 0 ? bx : (hc.b[i] + bx) / 2;
+          hc.tuoi[0] = 0; hc.tuoi[1] = 0;
+          if (hc.kieu[k] == KIEU_RIENG) hc.dem[k]++;
+        } else {
+          int64_t mau = hc.b[i] < 0 ? 0 : 2 * c + hc.b[i] * ra;   // thời gian kiểu riêng cần cho cùng số xe
+          hc.tuoi[k]++;
+          if (mau <= 0) {
+            // chưa có mốc "riêng" cùng loại để so: đang giữ "thẳng trước" thì lượt sau chạy "riêng" để lấy mốc
+            if (hc.kieu[k] != KIEU_RIENG) hc.tuoi[k] = 4 * cach;
+          } else {
+            int64_t q = ((int64_t)hc.l_g + (int64_t)hc.l_n * c) * 100 / mau;
+            if (hc.kieu[k] != KIEU_RIENG) {              // đang giữ "thẳng trước"
+              hc.q[k] = hc.q[k] < 0 ? q : (hc.q[k] * 3 + q) / 4;
+              if (hc.l_qt ? hc.q[k] >= 100 : hc.q[k] * 2 >= 200 + ng) hocDoiKieu(k, KIEU_RIENG);
+            } else {                                     // lượt thử khi đang giữ "riêng"
+              hc.q[k] = hc.lien[k] == 0 ? q : (hc.q[k] + q) / 2;
+              if (hc.q[k] <= (hc.l_qt ? 100 - 2 * ng : 100 - ng)) {
+                hc.lien[k]++;
+                if (hc.lien[k] >= 2) hocDoiKieu(k, KIEU_THANG_TRUOC);
+                else hc.dem[k] = hc.cach[k];             // đạt lần đầu: lượt sau của trục này thử tiếp
+              } else {
+                hc.lien[k] = 0; hc.dem[k] = 0;
+                if (hc.l_qt || q >= 100 + ng) {
+                  uint32_t tran = (hc.l_qt ? 4u : 2u) * cach;
+                  hc.cach[k] = hc.cach[k] * 2 > tran ? tran : hc.cach[k] * 2;
+                } else hc.cach[k] = cach;
+                baoSuKien(SK_HOC_TRA, (uint8_t)(k * 4 + KIEU_THANG_TRUOC));
+              }
+            }
+          }
+        }
       }
-      hc.cho[truc] = hc.lui[truc];
-      hocCuaSoMoi();
-      baoSuKien(nhan ? SK_HOC_NHAN : SK_HOC_TRA, (uint8_t)(truc * 4 + moi));
-      return;
     }
-    if (!du) return;
-    // Sắp tới lượt thử trục nào? Lần thử phải bắt đầu đúng vào lượt của trục đó, nên nếu lượt sắp
-    // chốt là của trục kia thì đo thêm một lượt nữa rồi mới đóng cửa sổ.
-    truc = -1;
-    if (hc.cho[hc.thu_ke] <= 1) truc = hc.thu_ke;
-    else if (hc.cho[1 - hc.thu_ke] <= 1) truc = 1 - hc.thu_ke;
-    if (truc >= 0 && truc_ke != truc) return;
-    // xong một cửa sổ đo kiểu đang giữ: điểm mới lấy trung bình với điểm cũ cho đỡ dao động
-    hc.diem_giu = hc.diem_giu < 0 ? diem : (hc.diem_giu + diem) / 2;
-    hocCuaSoMoi();
-    for (int i = 0; i < 2; i++) if (hc.cho[i] > 0) hc.cho[i]--;
-    if (truc < 0) return;
-    hc.dang_thu = true; hc.truc_thu = (uint8_t)truc; hc.thu_ke = (uint8_t)(1 - truc);
-    baoSuKien(SK_HOC_THU, (uint8_t)(truc * 4 + kieuNguoc(hc.kieu[truc])));
+    hc.l_truc = -1; hc.l_do = false; hc.l_thu = false;
   }
 
   // Màu của nhóm g (0..7) lúc t. Khi có lỗi an toàn: mọi nhóm nháy vàng.

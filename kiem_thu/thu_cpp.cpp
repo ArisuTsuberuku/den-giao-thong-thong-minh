@@ -21,7 +21,7 @@ int main() {
       ts.che_do = (uint8_t)v[0]; ts.t_min = v[1]; ts.t_max = v[2]; ts.cong_them = v[3];
       ts.xe_quy_doi = v[4]; ts.t_vang = v[5]; ts.t_do = v[6]; ts.cd_thang = v[7]; ts.cd_trai = v[8];
       ts.mat_tin_hieu = v[9]; ts.ut_xanh_an_toan = v[10]; ts.ut_giu = v[11]; ts.ut_toi_da = v[12]; ts.cat_som = v[13];
-      ts.kieu_pha = v[14]; ts.hoc_so_chu_ki = v[15]; ts.hoc_so_xe = v[16]; ts.hoc_nguong = v[17];
+      ts.kieu_pha = v[14]; ts.hoc_cach_thu = v[15]; ts.hoc_so_xe = v[16]; ts.hoc_nguong = v[17];
     } else if (!strcmp(lenh, "KH")) {
       unsigned v[15];
       for (int i = 0; i < 15; i++) if (scanf("%u", &v[i]) != 1) return 1;
@@ -51,8 +51,13 @@ int main() {
              dk.i_buoc, (unsigned)dk.chu_ki, (unsigned)dk.ut_huong, dk.loi ? 1 : 0, (int)dk.conLai(t));
       for (int g = 0; g < 8; g++) printf(" %u", (unsigned)dk.mauNhom(g, t));
       // trạng thái của bộ tự học và trục tới lượt
-      printf(" | %u %u %u %d %u %lld %u %u\n", (unsigned)dk.truc_ke, (unsigned)dk.hoc.kieu[0], (unsigned)dk.hoc.kieu[1],
-             dk.hoc.dang_thu ? 1 : 0, (unsigned)dk.hoc.truc_thu, (long long)dk.hoc.diem_giu, (unsigned)dk.hoc.luot, (unsigned)dk.hoc.so_ck);
+      const Hoc &hc = dk.hoc;
+      printf(" | %u", (unsigned)dk.truc_ke);
+      for (int k = 0; k < 2; k++)
+        printf(" %u %lld %lld %u %u %u %u %u", (unsigned)hc.kieu[k], (long long)hc.b[k], (long long)hc.q[k], (unsigned)hc.dem[k],
+               (unsigned)hc.cach[k], (unsigned)hc.lien[k], (unsigned)hc.tuoi[k], (unsigned)hc.ra[k]);
+      printf(" %d %u %d %d %d %d %llu %u\n", (int)hc.l_truc, (unsigned)hc.l_kieu, hc.l_do ? 1 : 0, hc.l_thu ? 1 : 0, hc.l_hong ? 1 : 0,
+             hc.l_qt ? 1 : 0, (unsigned long long)hc.l_g, (unsigned)hc.l_n);
     }
   }
   return 0;

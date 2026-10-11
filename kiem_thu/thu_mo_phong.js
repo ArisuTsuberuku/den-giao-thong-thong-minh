@@ -140,12 +140,12 @@ function tiLeThangTruoc(p_trai, hat) {
   mp.khiSuKien = (loai) => { if (loai === 'hoc_thu') thu++; };
   for (let i = 0; i < 90 * 1500; i++) {
     mp.buoc(40);
-    if (i >= 45 * 1500 && i % 250 === 0) { const k = mp.dk.kieuChoChuKi(); n++; if (k[0] === QD.KIEU_THANG_TRUOC) tt[0]++; if (k[1] === QD.KIEU_THANG_TRUOC) tt[1]++; }
+    if (i >= 45 * 1500 && i % 250 === 0) { const k = mp.dk.hoc.kieu; n++; if (k[0] === QD.KIEU_THANG_TRUOC) tt[0]++; if (k[1] === QD.KIEU_THANG_TRUOC) tt[1]++; }
   }
   return { doc: tt[0] / n, ngang: tt[1] / n, thu, cho: mp.tongHop().cho_tb };
 }
 {
-  console.log('\nTự học, 6 xe/phút mỗi hướng: phần thời gian dùng kiểu "thẳng trước" trong 45 phút cuối');
+  console.log('\nTự học, 6 xe/phút mỗi hướng: phần thời gian giữ kiểu "thẳng trước" trong 45 phút cuối');
   const ca = [['không ai rẽ trái', [0, 0]], ['25 % rẽ trái', [25, 25]], ['dọc 0 %, ngang 30 %', [0, 30]]];
   const kq = ca.map(([ten, p]) => {
     let doc = 0, ngang = 0, thu = 0;
@@ -157,6 +157,30 @@ function tiLeThangTruoc(p_trai, hat) {
   kiem(kq[1].doc < 0.25 && kq[1].ngang < 0.25, '25 % rẽ trái: cả hai trục phải ở "riêng từng hướng" phần lớn thời gian');
   kiem(kq[2].doc > 0.5 && kq[2].ngang < 0.3, 'dọc không rẽ trái, ngang rẽ nhiều: dọc "thẳng trước", ngang "riêng"');
   kiem(kq.every(k => k.thu >= 3), 'bộ tự học phải có chạy thử');
+}
+
+// ---------- 4b) Đổi dòng xe giữa chừng: bộ tự học phải đổi kiểu theo ----------
+// Chạy 30 phút với dòng xe thứ nhất rồi đổi tỉ lệ rẽ trái; đo số phút tới khi mỗi trục giữ kiểu hợp với dòng xe mới.
+function phutToiKhiDoi(p_truoc, p_sau, kieu_dich, hat) {
+  const cai = { luu_luong: [0, 6, 6, 6, 6], ti_le_trai: [0, p_truoc, p_truoc, p_truoc, p_truoc], ti_le_phai: 15, toc_do: 120 };
+  const mp = new MoPhong({ hat, ts: QD.thamSoMacDinh(), cai });
+  const kq = [-1, -1], DOI = 30 * 1500, HET = 75 * 1500;
+  for (let i = 0; i < HET; i++) {
+    if (i === DOI) for (let h = 1; h <= 4; h++) mp.cai.ti_le_trai[h] = p_sau;
+    mp.buoc(40);
+    if (i >= DOI) for (let k = 0; k < 2; k++) if (kq[k] < 0 && mp.dk.hoc.kieu[k] === kieu_dich) kq[k] = (i - DOI) / 1500;
+  }
+  return kq.map(x => x < 0 ? 45 : x);
+}
+{
+  console.log('\nĐổi dòng xe ở phút 30 (6 xe/phút mỗi hướng): số phút tới khi từng trục đổi kiểu, 3 lần chạy');
+  for (const [ten, p1, p2, dich, han_giua, han] of [['25 % rẽ trái → không ai rẽ trái', 25, 0, QD.KIEU_THANG_TRUOC, 15, 40], ['không ai rẽ trái → 25 % rẽ trái', 0, 25, QD.KIEU_RIENG, 20, 30]]) {
+    const o = [];
+    for (const hat of [1, 2, 3]) phutToiKhiDoi(p1, p2, dich, hat).forEach(x => o.push(x));
+    const xep = o.slice().sort((a, b) => a - b), giua = (xep[2] + xep[3]) / 2;
+    console.log('  ' + ten.padEnd(34) + o.map(x => x >= 45 ? '>45' : x.toFixed(0)).join(', ') + '   (giữa: ' + giua.toFixed(0) + ' phút)');
+    kiem(giua <= han_giua && xep[5] <= han, ten + ': một nửa số lần phải đổi trong ' + han_giua + ' phút, chậm nhất ' + han + ' phút');
+  }
 }
 
 // ---------- 5) Bảng so sánh (60 phút mô phỏng, 3 hạt giống) ----------

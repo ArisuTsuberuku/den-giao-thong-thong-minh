@@ -18,8 +18,8 @@
 //                hướng cho làn trong còn xe. Lợi khi ít xe rẽ trái, thiệt khi nhiều.
 //   DOI_XUNG     hai hướng cùng đi thẳng, rồi cùng rẽ trái. Vì làn trong đi chung thẳng và trái
 //                nên xe hai loại dễ chặn nhau; chỉ hợp khi gần như không có xe rẽ trái.
-//   TU_HOC       bộ điều khiển chạy thử RIENG và THANG_TRUOC, đo thời gian chờ rồi giữ kiểu tốt hơn
-//                cho từng trục (xem dieu_khien.h)
+//   TU_HOC       mỗi trục tự chọn giữa RIENG và THANG_TRUOC: cứ vài lượt chạy thử kiểu kia một lượt,
+//                đo thời gian đèn cho cùng số xe rồi giữ kiểu nhanh hơn (xem dieu_khien.h)
 #define KIEU_TU_HOC 0
 #define KIEU_RIENG 1
 #define KIEU_THANG_TRUOC 2
@@ -41,9 +41,9 @@ struct ThamSo {
   uint32_t ut_toi_da;        // ưu tiên tự hủy sau thời gian này
   uint32_t cat_som;          // chế độ thích ứng: tổ hợp đang xanh không còn xe quá lâu thế này thì cắt xanh sớm (0: tắt)
   uint32_t kieu_pha;         // kiểu chia pha của chế độ thích ứng: KIEU_TU_HOC, KIEU_RIENG, KIEU_THANG_TRUOC hoặc KIEU_DOI_XUNG
-  uint32_t hoc_so_chu_ki;    // tự học: mỗi lần đo hoặc thử kéo dài ít nhất bấy nhiêu vòng (một vòng = lượt dọc + lượt ngang)...
-  uint32_t hoc_so_xe;        // ... và phải có ít nhất bấy nhiêu xe đi qua
-  uint32_t hoc_nguong;       // tự học: kiểu thử phải hơn kiểu đang giữ ít nhất bấy nhiêu % mới được chọn
+  uint32_t hoc_cach_thu;     // tự học: đang giữ "riêng" thì cứ bấy nhiêu lượt của một trục lại thử "thẳng trước" một lượt (0: tắt tự học)
+  uint32_t hoc_so_xe;        // tự học: lượt có ít hơn bấy nhiêu xe qua vạch dừng thì không tính
+  uint32_t hoc_nguong;       // tự học: "thẳng trước" phải nhanh hơn "riêng" ít nhất bấy nhiêu % mới được chọn
 };
 
 struct Buoc {
