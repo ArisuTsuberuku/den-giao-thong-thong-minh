@@ -490,7 +490,11 @@ public:
       int64_t ra = hc.ra[k], ng = ts->hoc_nguong;
       uint32_t cach = ts->hoc_cach_thu;
       if (!hocDangBat() || hc.l_hong) {
-        if (hc.l_thu) baoSuKien(SK_HOC_HUY, (uint8_t)k);
+        if (hc.l_thu) {
+          // lượt thử bị hỏng (xe ưu tiên, mất camera): không thử lại ngay lượt sau mà chờ đủ một khoảng
+          if (hc.kieu[k] == KIEU_RIENG) { hc.dem[k] = 0; hc.lien[k] = 0; }
+          baoSuKien(SK_HOC_HUY, (uint8_t)k);
+        }
       } else if (ra > 0 && ra >= (int64_t)ts->hoc_so_xe && hc.l_n > 0) {
         int64_t c = (int64_t)ts->t_vang + ts->t_do + ts->cat_som;
         int i = hc.l_qt ? 1 : 0;
@@ -503,8 +507,10 @@ public:
           int64_t mau = hc.b[i] < 0 ? 0 : 2 * c + hc.b[i] * ra;   // thời gian kiểu riêng cần cho cùng số xe
           hc.tuoi[k]++;
           if (mau <= 0) {
-            // chưa có mốc "riêng" cùng loại để so: đang giữ "thẳng trước" thì lượt sau chạy "riêng" để lấy mốc
+            // Chưa có mốc "riêng" cùng loại để so nên không chấm được lượt này. Đang giữ "thẳng trước" thì
+            // lượt sau chạy "riêng" để lấy mốc; đang giữ "riêng" thì bỏ lần thử, chạy "riêng" tiếp để có mốc.
             if (hc.kieu[k] != KIEU_RIENG) hc.tuoi[k] = 4 * cach;
+            else { hc.dem[k] = 0; hc.lien[k] = 0; }
           } else {
             int64_t q = ((int64_t)hc.l_g + (int64_t)hc.l_n * c) * 100 / mau;
             if (hc.kieu[k] != KIEU_RIENG) {              // đang giữ "thẳng trước"

@@ -1,6 +1,6 @@
 # Tiến độ dự án: Đèn giao thông thông minh (NCKHKT 2026)
 
-Cập nhật lần cuối: 2026-10-11 (viết lại chế độ tự học để đổi kiểu chia pha nhanh hơn khi dòng xe thay đổi; trước đó cùng ngày: chốt kế hoạch theo lượt, ba kiểu chia pha, bốn loại xe ưu tiên, cỡ xe trong mô phỏng; code ở repo GitHub `ArisuTsuberuku/den-giao-thong-thong-minh`; chưa thử trên board thật)
+Cập nhật lần cuối: 2026-10-12 (camera trong mô phỏng làm đúng như ESP32-S3-CAM thật: góc nhìn OV2640 từ khung đèn, cắt ROI, nhận diện kiểu FOMO 96 × 96, 1 khung mỗi giây; ngày 2026-10-11: viết lại chế độ tự học, chốt kế hoạch theo lượt, ba kiểu chia pha, bốn loại xe ưu tiên, cỡ xe trong mô phỏng; code ở repo GitHub `ArisuTsuberuku/den-giao-thong-thong-minh`; chưa thử trên board thật)
 
 ## Cách dùng file này
 
@@ -47,7 +47,7 @@ Cách gọi tên thống nhất với sa bàn: Hướng 1 (từ trên xuống) �
 
 ## 3. Quyết định thiết kế
 
-1. Truyền tin camera → trung tâm bằng ESP-NOW, nội dung JSON, kênh WiFi cố định, 3–5 gói mỗi giây.
+1. Truyền tin camera → trung tâm bằng ESP-NOW, nội dung JSON, kênh WiFi cố định. Camera gửi ngay sau mỗi khung xử lí xong, không dày hơn 4 gói mỗi giây; ở 1 khung/giây là 1 gói mỗi giây.
 2. Một firmware camera dùng chung cho 4 board, chỉ khác `CAM_ID` và thông số ROI.
 3. Firmware trung tâm viết kiểu máy trạng thái với `millis()`, không dùng `delay()`.
 4. Trung tâm nhận cùng định dạng JSON qua Serial để thử thuật toán khi chưa có camera.
@@ -73,6 +73,9 @@ Cách gọi tên thống nhất với sa bàn: Hướng 1 (từ trên xuống) �
 24. Bốn loại xe ưu tiên, mở đèn theo thứ tự cứu hỏa → quân sự → công an → cứu thương (thầy yêu cầu 2026-10-11). Bản tin JSON thêm trường `ut`. Lưu ý: Điều 27 Luật Trật tự, an toàn giao thông đường bộ 2024 xếp xe quân sự và xe công an cùng một hạng; thứ tự "sự" trước "công" là theo câu dễ nhớ, chờ thầy quyết giữ hay cho cùng hạng.
 25. Xe ưu tiên qua khỏi vùng camera 1 s là đèn chuyển vàng ngay, không giữ xanh thêm, để các hướng khác không phải chờ lâu (thầy yêu cầu 2026-10-11). Tham số `UT_GIU`, trước đó là 5 s.
 26. Web mô phỏng vẽ xe ở cỡ 75 % (51 × 26 mm, 5 xe mỗi làn chờ) cho giống tỉ lệ ô tô với làn đường thật và không che chỗ rẽ; chọn được 60 %, 75 %, 100 %. Cỡ 100 % là xe Hot Wheels trên sa bàn thật (4 xe mỗi làn).
+27. (Đề xuất, đã cài 2026-10-12) Camera trong mô phỏng làm đúng như ESP32-S3-CAM thật (thầy yêu cầu): khung 320 × 240 chiếu phối cảnh từ ống kính trên khung đèn, cắt ROI rồi co về 96 × 96, nhận diện kiểu FOMO lưới 12 × 12 có gộp ô, 1 khung mỗi giây, lọc 3 khung. Chi tiết và kết quả ở mục 8. Camera lí tưởng giữ lại để so sánh.
+28. (Đề xuất) Gắn board camera sao cho cạnh dài của khung hình nằm dọc theo đường; gắn ngược lại thì không thấy xe đứng sát vạch dừng (mục 8).
+29. (Đề xuất) Lọc nhiễu ở camera qua 3 khung (trước là 5): ở 1 khung/giây, 5 khung làm trễ thêm 1 s mà không bớt nhầm được bao nhiêu; không lọc thì hay mở ưu tiên nhầm. Tham số `SO_KHUNG_LOC`.
 
 ## 4. Giao thức JSON
 
@@ -91,7 +94,7 @@ Cách gọi tên thống nhất với sa bàn: Hướng 1 (từ trên xuống) �
 
 Camera gửi số xe đếm được trên sa bàn; việc nhân với `XE_QUY_DOI` làm ở board trung tâm. Trong vùng có nhiều xe ưu tiên thì camera báo xe hạng cao nhất.
 
-Lọc nhiễu tại camera trước khi gửi: `s`, `l` lấy trung vị 5 khung gần nhất; `emg` chỉ bật khi 3/5 khung thấy xe ưu tiên; `ut` là loại xuất hiện ở nhiều khung nhất trong 5 khung đó.
+Lọc nhiễu tại camera trước khi gửi (`SO_KHUNG_LOC`, mặc định 3): `s`, `l` lấy trung vị 3 khung gần nhất; `emg` chỉ bật khi 2/3 khung thấy xe ưu tiên; `ut` là loại xuất hiện ở nhiều khung nhất trong các khung đó.
 
 ## 5. Nhóm tín hiệu, pha và cách quyết định
 
@@ -193,11 +196,13 @@ Luật chọn cho từng trục:
 1. Đang giữ "riêng": cứ `HOC_CACH_THU` lượt (4) thì thử một lượt "thẳng trước". Đạt 100 − `HOC_NGUONG` (90 %) thì lượt sau thử tiếp; trung bình hai lượt vẫn đạt thì đổi. Kém rõ (từ 110 %) thì lần thử sau giãn ra 8 lượt.
 2. Đang giữ "thẳng trước": điểm trung bình trượt lên tới 105 % thì về "riêng". Thỉnh thoảng chạy một lượt "riêng" để làm mới mốc (cách 4 lượt khi điểm gần 100 %, cách 16 lượt khi điểm dưới 80 %).
 3. Lúc quá tải đòi bằng chứng mạnh hơn: lượt thử phải đạt 80 %, không đạt thì giãn tới 16 lượt; đang giữ "thẳng trước" mà điểm từ 100 % là về "riêng".
-4. Lượt có xe ưu tiên, thiếu camera hoặc dưới `HOC_SO_XE` xe qua (4) thì không tính. Mỗi lần bật máy bắt đầu từ kiểu "riêng".
+4. Lượt có xe ưu tiên, thiếu camera hoặc dưới `HOC_SO_XE` xe qua (4) thì không tính. Lượt thử bị bỏ vì lí do đó thì chờ đủ `HOC_CACH_THU` lượt mới thử lại (thêm 2026-10-12: camera thật thỉnh thoảng nhìn nhầm ra xe ưu tiên, và lúc đông xe hai lượt thử sát nhau làm có xe đứng chờ hơn 5 phút). Lượt thử mà chưa có mốc "riêng" cùng loại để so thì bỏ qua và chạy "riêng" để lấy mốc (sửa 2026-10-12: trước đó có thể thử mãi không dừng). Mỗi lần bật máy bắt đầu từ kiểu "riêng".
 
-Kết quả mô phỏng 120 phút (`node kiem_thu/khao_sat_kieu_pha.js`, bảng đầy đủ ở `README.md`): trung bình 13 kiểu dòng xe, tự học chờ ít hơn kiểu riêng 15 % và nhiều hơn kiểu tốt nhất của từng dòng 8 %; ít hơn 55–65 % khi không có xe rẽ trái ở đường đông; nhiều hơn 1–8 % khi từ 25 % xe rẽ trái. Chỗ yếu: ngã tư quá tải mà nhiều xe rẽ trái (12 xe/phút mỗi hướng, 30 % rẽ trái) thì chờ lâu hơn kiểu riêng 17 %.
+Kết quả mô phỏng 120 phút với camera lí tưởng (`node kiem_thu/khao_sat_kieu_pha.js`, bảng đầy đủ ở `README.md`): trung bình 13 kiểu dòng xe, tự học chờ ít hơn kiểu riêng 14 % và nhiều hơn kiểu tốt nhất của từng dòng 9 %; ít hơn 53–65 % khi không có xe rẽ trái ở đường đông; nhiều hơn 1–8 % khi từ 25 % xe rẽ trái. Chỗ yếu: ngã tư quá tải mà nhiều xe rẽ trái (12 xe/phút mỗi hướng, 30 % rẽ trái) thì chờ lâu hơn kiểu riêng 17 %.
 
-Đổi dòng xe giữa chừng (6 xe/phút mỗi hướng): từ 25 % rẽ trái về 0 % thì 5 trong 6 lần sang "thẳng trước" sau 9–12 phút, một lần 30 phút; từ 0 % lên 25 % thì về "riêng" sau 9–20 phút.
+Với camera ESP32-S3-CAM (1 khung/giây, lọc 3 khung): tự học vẫn chọn đúng kiểu ở 8 dòng xe đã thử; so với kiểu riêng: −58 % (6 xe/phút, không rẽ trái), −27 % (5 % rẽ trái), +5 % (25 % rẽ trái), −68 % (9 xe/phút, không rẽ trái), +16 % (quá tải, 30 % rẽ trái).
+
+Đổi dòng xe giữa chừng (6 xe/phút mỗi hướng): camera lí tưởng: từ 25 % rẽ trái về 0 % thì sang "thẳng trước" sau 11–15 phút, một lần 30 phút; từ 0 % lên 25 % thì về "riêng" sau 9–20 phút. Camera ESP32-S3-CAM: 2–21 phút và 8–26 phút; có một lần đo hai trục giữ "thẳng trước" quá 40 phút vì điểm % lơ lửng 95–100 % (chưa tới 105 % để trả về; hạ mức trả về thì các dòng 5 % rẽ trái lại kém đi, nên chưa đổi).
 
 Điều kiện để dùng trên sa bàn thật: xe phải chạy qua vạch thật (số đếm giảm dần) và camera đếm ổn định. Số đếm nhảy lung tung, hoặc hàng xe luôn đầy vùng camera làm số đếm đứng yên, thì số xe qua bị sai. Xe đặt bằng tay thì nên chọn kiểu cố định bằng lệnh `kieu`.
 
@@ -222,6 +227,10 @@ Kết quả mô phỏng 120 phút (`node kiem_thu/khao_sat_kieu_pha.js`, bảng 
 | Tự học: khoảng cách giữa hai lượt thử `HOC_CACH_THU` | 4 lượt của một trục | Đề xuất, chọn qua mô phỏng |
 | Tự học: số xe ít nhất của một lượt được tính `HOC_SO_XE` | 4 xe | Đề xuất |
 | Tự học: ngưỡng đổi kiểu `HOC_NGUONG` | 10 % | Đề xuất, chọn qua mô phỏng |
+| Camera: số khung xử lí mỗi giây | khoảng 1 (chụp + cắt + co + chạy mô hình) | Thầy đặt 2026-10-12; FOMO 96 × 96 ảnh xám trên ESP32-S3 riêng phần mô hình mất 115–143 ms |
+| Camera: lọc nhiễu `SO_KHUNG_LOC` | 3 khung | Đề xuất, chọn qua mô phỏng |
+| Camera: gửi gói `CHU_KI_GUI_MS` | sau mỗi khung, cách nhau ít nhất 250 ms | Có từ bản đầu; ghi rõ 2026-10-12 |
+| Camera: ảnh đưa vào mô hình | 96 × 96 (nên thử 160 × 160) | Đề xuất, xem mục 8 |
 
 Với quy đổi trên, mỗi xe mô hình cộng 5 s: 0 xe → 15 s, 1 xe → 20 s, 2 xe → 25 s, 3 xe → 30 s, 4 xe (đầy làn từ Lần 08) → 35 s. Mức Tmax 90 s chỉ đạt khi có 150 xe thật, tức không xảy ra trên sa bàn.
 
@@ -266,17 +275,25 @@ Cần thử ở GĐ1: module đèn thiết kế cho 5 V, chân ESP32 chỉ ra 3,
 
 ## 8. Camera: vị trí, vùng quan sát và chia làn
 
-Vị trí theo khung đèn Lần 06: trụ camera nằm giữa 2 cụm đèn, đúng trên vạch chia 2 làn; khung đèn đứng khoảng 15 mm sau vạch dừng (phía ngã tư). Sau khi bẻ tấm gá, ống kính chồm về phía xe tới khoảng 29 mm nên nằm gần như ngay trên vạch dừng, cao khoảng 285 mm, nhìn ngược về phía xe đang tới.
+Vị trí theo khung đèn Lần 08: trụ camera nằm giữa 2 cụm đèn, đúng trên vạch chia 2 làn; sau khi bẻ tấm gá, ống kính nằm trước vạch dừng khoảng 14 mm (về phía xe tới), cao khoảng 285 mm, trục ống kính chếch 26° so với phương thẳng đứng, nhìn ngược về phía xe đang tới. (Số lấy từ thiết kế ghi ở mục 2; script khung đèn chưa đọc lại được trong phiên 2026-10-12 vì máy đang dùng chưa cấp quyền thư mục dự án.)
 
-Góc bẻ tấm gá: khoảng 64° so với phương đứng (trục ống kính chếch khoảng 26° so với phương thẳng đứng). Tính với ống kính thường, góc nhìn khoảng 55° × 43°: vùng nhìn dọc đường từ khoảng 20 mm sau vạch dừng tới hết vùng chờ 304 mm; bề ngang khung hình rộng hơn nhiều so với 2 làn (96 mm). Cần kiểm lại bằng ảnh thật; nếu dùng ống kính góc rộng thì bẻ ít hơn.
+Hình học tính trong `web/may_anh.js` (2026-10-12), với ống kính thường đi kèm OV2640, góc nhìn 66° theo đường chéo (55° theo cạnh dài, 43° theo cạnh ngắn), khung 320 × 240:
 
-Xử lí ảnh:
+- **Cạnh dài khung hình dọc theo đường (đề xuất, mục 3 phần 28):** thấy trọn bề rộng hai làn từ trước mép làn bao (vùng chờ bắt đầu ở 58 mm) tới cách vạch dừng 7 mm. Xe đứng sát vạch dừng vẫn thấy 89 % thân ở cỡ xe 75 %. ROI tính ra: 277 × 136 điểm ảnh bắt đầu ở (43, 52), vạch dừng ở mép phải ảnh, làn trong ở phía trên. Đây là dòng cấu hình ban đầu đã ghi vào `firmware/camera/cau_hinh.h` cho cả 4 camera; lắp xong vẫn phải bấm lại trên trang thu ảnh.
+- **Cạnh ngắn dọc theo đường:** khung hình dừng cách vạch dừng 38 mm, xe sát vạch chỉ còn 15–48 % thân trong ảnh và gần như không được nhận ra. Mô phỏng ở cỡ xe 100 %: số khung đếm đúng còn 48 % (so với gần 80 %).
+- Bề ngang khung hình rộng hơn nhiều so với 2 làn, nên ROI bỏ phần lớn ảnh; ảnh ROI co về 96 × 96 chỉ còn 35 % độ phân giải theo chiều dọc đường.
 
-- Chụp ở 320 × 240, cắt một hình chữ nhật ROI chỉ chứa 2 làn chờ, rồi co về kích thước đầu vào mô hình (bắt đầu với 96 × 96).
-- Ảnh huấn luyện phải đi qua đúng bước cắt này, chụp bằng chính camera đã gắn cố định trên sa bàn.
-- Sau khi mô hình trả về tâm từng xe, gán xe vào làn bằng 2 tứ giác (làn ngoài, làn trong) khai báo trong cấu hình. Tâm nằm ngoài cả hai tứ giác thì bỏ qua: làn rẽ phải, 2 làn ra bên kia dải phân cách, đường bao ngoài.
+Xử lí ảnh (firmware đã viết theo cách này; mô phỏng làm đúng thứ tự đó):
+
+- Chụp ở 320 × 240, cắt ROI chỉ chứa 2 làn chờ, rồi co về kích thước đầu vào mô hình kiểu Squash.
+- Mô hình FOMO chia ảnh 96 × 96 thành lưới 12 × 12 ô; ô sáng cùng nhãn nằm sát nhau bị gộp thành một vật. Hệ quả tính được: hàng xe xếp kín làn ở cỡ 75 % (5 xe) bị đếm thành 4, cỡ 60 % (6 xe) thành 5, vì hai xe cuối hàng rơi vào hai ô sát nhau; cỡ 100 % đếm đủ. Ảnh 160 × 160 (lưới 20 × 20) đếm đủ ở cả ba cỡ, giờ cao điểm chờ ít hơn chừng 3 s; tính nhiều gấp khoảng 2,8 lần, ước 0,3–0,4 s mỗi lần trên ESP32-S3, cần đo trên board thật.
+- Ảnh huấn luyện phải đi qua đúng bước cắt này, chụp bằng chính camera đã gắn cố định trên sa bàn (chế độ thu ảnh lưu ảnh ROI ở kích thước gốc, nên dùng được cho cả mô hình 96 và 160).
+- Sau khi mô hình trả về tâm từng xe, gán xe vào làn bằng 2 tứ giác (làn ngoài, làn trong). Tâm nằm ngoài cả hai tứ giác thì bỏ qua: làn rẽ phải, 2 làn ra bên kia dải phân cách, đường bao ngoài.
+- Lọc 3 khung, gửi ngay sau mỗi khung. Ở 1 khung/giây, xe vừa vào vùng chờ thì trung tâm biết sau 2–3 s; xe ưu tiên qua vạch rồi thì 3–4 s sau đèn chuyển vàng (camera lí tưởng: 1,5 s).
 - Ánh sáng đèn tín hiệu ngay dưới camera hắt lên xe ở vạch dừng và đổi màu theo pha, nên ảnh huấn luyện phải có đủ cả lúc đèn đỏ, vàng, xanh.
 - Thông số ROI và 2 tứ giác lưu riêng cho từng camera.
+
+Ảnh hưởng của camera thật trong mô phỏng (kiểu riêng, cỡ xe 75 %, 60 phút × 3 lần): thời gian chờ tăng 3–6 s ở các dòng xe không quá tải (25,9 → 31,9 s ở dòng xe đều) và khoảng 16 % ở giờ cao điểm (81,1 → 94,2 s). Không lọc thì giờ cao điểm lên 188,7 s và trong 6 giờ mô phỏng có 129 lần mở ưu tiên nhầm (lọc 3 khung: 14 lần). Xử lí 3 khung/giây thì dòng xe đều còn 27,6 s. Phần "mô hình nhận đúng 95 % xe thấy rõ" là giả định; cần đo trên mô hình thật rồi chỉnh lại.
 
 ## 9. Nguồn
 
@@ -303,6 +320,7 @@ Xử lí ảnh:
 - [ ] GĐ3. Một camera: cắt ROI, thu ảnh, huấn luyện, đếm riêng 2 làn, in ra Serial. Xong khi: đếm đúng 0–4 xe mỗi làn trên 90 % lần thử
 - [ ] GĐ4. Camera gửi ESP-NOW; ghép 1 rồi 4 camera. Xong khi: trung tâm nhận đủ 4 hướng, mất gói dưới 5 %
 - [x] Thêm chốt kế hoạch theo lượt, ba kiểu chia pha, chế độ tự học, bốn loại xe ưu tiên, chuyển vàng ngay sau khi xe ưu tiên qua, cỡ xe trong mô phỏng; đã kiểm tra trên máy tính, chưa thử trên board (2026-10-11)
+- [x] Camera trong mô phỏng làm đúng như ESP32-S3-CAM thật (góc nhìn OV2640, cắt ROI, FOMO 96 × 96, 1 khung/giây, lọc 3 khung); firmware camera lọc 3 khung, có cấu hình ROI ban đầu tính từ hình học; đã kiểm tra trên máy tính (2026-10-12)
 - [ ] GĐ5. Xe ưu tiên. Xong khi: đặt xe ưu tiên vào thì hướng đó được xanh, xe qua thì đèn chuyển vàng và hệ thống tự trở lại bình thường; đặt hai loại xe ở hai hướng thì đèn mở đúng thứ tự
 - [ ] GĐ6. Cơ chế an toàn và đo đạc. Xong khi: rút nguồn 1 camera hệ thống vẫn chạy; có số liệu so sánh chế độ cố định và thích ứng trên sa bàn
 - [ ] GĐ7 (tùy chọn). Thử chế độ tự học (mức 2) trên sa bàn khi camera đã đếm ổn định; mức 3 nếu còn thời gian
@@ -313,7 +331,7 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 
 1. Xác nhận các đề xuất còn lại ở mục 3: quy đổi xe (13), tua nhanh (14), ba mức của bộ quyết định (17). Mục 15 và 16 đã chốt.
 2. Học sinh đo lại 3–4 xe Hot Wheels sẽ dùng (rộng nhất kể cả bánh, dài từ đầu tới đuôi): vùng chờ 304 mm đủ 4 xe nếu xe dài ≤ 70–72 mm; xe 75 mm thì xe thứ 4 lấn ~2 cm ra làn bao.
-3. Ống kính camera là loại thường hay góc rộng; đo board thật để chỉnh ô ống kính trên tấm gá. Nếu là ống kính góc rộng (~120°) thì có thể hạ camera xuống khoảng 150–170 mm. (Loại board đã rõ: ESP32-S3-CAM có đế nạp.)
+3. Ống kính camera là loại thường hay góc rộng; đo board thật để chỉnh ô ống kính trên tấm gá. Mô phỏng tính với ống kính thường 66° theo đường chéo; nếu là ống kính góc rộng (120–160°) thì khung hình khác hẳn, ảnh méo cong, có thể hạ camera xuống khoảng 150–170 mm. Khi gắn: cạnh dài của khung hình dọc theo đường (mục 8). (Loại board đã rõ: ESP32-S3-CAM có đế nạp.)
 4. Thử độ sáng module đèn ở 3,3 V.
 5. Mua mạch hạ áp 5 V 5 A.
 6. Báo cáo ghi mỗi hướng có "1 làn đi thẳng/rẽ phải, 1 làn rẽ trái" và dùng cảm biến âm thanh; sa bàn thực tế là làn ngoài đi thẳng, làn trong thẳng hoặc rẽ trái, rẽ phải có làn riêng, không có cảm biến âm thanh. Cần sửa báo cáo cho khớp.
@@ -322,7 +340,9 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 9. Mô phỏng (trễ phản ứng 1 s, cỡ xe 75 %): chế độ thích ứng tự học chờ ít hơn chế độ cố định ở cả 6 kiểu dòng xe (18–99 %). Kiểu "ít rẽ trái" trước đây thua 24 %, nay hơn 18 % nhờ kiểu thẳng trước. Cần kiểm lại trên sa bàn thật, nhất là việc camera đếm có đủ ổn định để cắt sớm và để tự học không.
 10. Thầy quyết: giữ thứ tự quân sự trước công an, hay cho hai loại cùng hạng như Điều 27 Luật Trật tự, an toàn giao thông đường bộ 2024 (mục 24 phần 3).
 11. Chuẩn bị 4 xe ưu tiên mô hình khác hẳn nhau về màu để mô hình 96 × 96 phân biệt được; chụp đủ ảnh từng loại. Nếu không phân biệt nổi thì gộp một lớp `xe_uu_tien`.
-12. Tự học còn yếu khi ngã tư quá tải mà nhiều xe rẽ trái (chờ lâu hơn kiểu riêng 17 % trong mô phỏng), và có lần mất 30 phút mới đổi kiểu. Trên sa bàn thật còn phải xem camera đếm có đủ ổn định để đếm được xe qua vạch không.
+13. Khi có mô hình thật: đo thời gian mỗi khung (camera in "khung/giây" ra Serial) cho bản 96 × 96 và 160 × 160; dưới khoảng 0,6 s thì dùng 160 × 160. Đo tỉ lệ nhận đúng thật để thay giả định 95 % trong mô phỏng.
+14. Kiểm lại hình học camera với script khung đèn Lần 08 (độ cao ống kính, góc chúc, vị trí so với vạch dừng) khi mở phiên trên máy có thư mục dự án; nếu khác thì sửa `cao_mm`, `nghieng`, `lui_mm` trong `web/may_anh.js` và dòng cấu hình trong `cau_hinh.h`.
+12. Tự học còn yếu khi ngã tư quá tải mà nhiều xe rẽ trái (chờ lâu hơn kiểu riêng 16–17 % trong mô phỏng), và có lần mất 30 phút (camera thật: hơn 40 phút) mới đổi kiểu. Trên sa bàn thật còn phải xem camera đếm có đủ ổn định để đếm được xe qua vạch không.
 
 ## 12. Nhật ký thay đổi
 
@@ -350,3 +370,4 @@ GĐ1–2 và GĐ3 có thể làm song song bởi hai nhóm học sinh.
 | 2026-10-11 | Theo góp ý thầy chuyển tới: web vẽ xe nhỏ lại (mặc định 75 %, chọn được 60/75/100 %); thêm xe cứu hỏa, quân sự, công an bên cạnh xe cứu thương, mở đèn theo thứ tự hỏa → sự → công → thương; JSON thêm trường `ut`; firmware camera nhận 4 nhãn xe ưu tiên |
 | 2026-10-11 | Theo yêu cầu của thầy: xe ưu tiên qua khỏi vùng camera 1 s là chuyển vàng ngay (trước đó giữ xanh thêm 5 s); sau ưu tiên, đèn trả cho trục vừa phải chờ |
 | 2026-10-11 | Thầy thấy trên web: giảm xe rẽ trái mà đèn vẫn chỉ chạy kiểu "thẳng và trái". Kiểm tra lại: bản tự học đầu đổi kiểu quá chậm (11 đến hơn 90 phút mô phỏng, có khi không đổi). Viết lại tự học: đo thời gian đèn của từng lượt so với kiểu riêng cho cùng số xe, cứ 4 lượt thử một lượt. Nay đổi kiểu sau 9–20 phút (một lần 30 phút); trung bình 13 kiểu dòng xe chờ ít hơn kiểu riêng 15 % (trước 12 %); quá tải nhiều rẽ trái kém kiểu riêng 17 % (trước 29 %). Thêm bài kiểm tra đổi dòng xe giữa chừng |
+| 2026-10-12 | Theo yêu cầu của thầy, camera trong mô phỏng làm đúng như ESP32-S3-CAM: khung 320 × 240 chiếu phối cảnh từ ống kính OV2640 66° trên khung đèn (cao 285 mm, chúc 26°), cắt ROI 277 × 136 rồi co về 96 × 96, nhận diện kiểu FOMO lưới 12 × 12 có gộp ô như Edge Impulse, 1 khung mỗi giây, lọc 3 khung, gửi ngay sau mỗi khung. Phát hiện: phải gắn cạnh dài khung hình dọc theo đường; ảnh 96 × 96 đếm thiếu một xe khi làn xếp kín (160 × 160 thì đủ). Camera thật làm chờ lâu hơn 3–6 s, giờ cao điểm 16 %; xe ưu tiên qua rồi 3–4 s sau đèn mới vàng. Firmware camera: lọc 3 khung (trước 5), cấu hình ROI ban đầu tính từ hình học. Tự học: sửa lỗi thử mãi khi chưa có mốc; lượt thử bị hủy thì chờ đủ 4 lượt. Thêm bài kiểm tra `thu_may_anh.js` |

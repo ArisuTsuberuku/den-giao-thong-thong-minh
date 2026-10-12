@@ -1,13 +1,16 @@
 // khao_sat_kieu_pha.js — Khảo sát: kiểu chia pha nào chờ ít nhất ở từng kiểu dòng xe, và chế độ
 // tự học bám được kiểu tốt nhất tới đâu. Không phải bài kiểm tra đạt hay không đạt; chỉ in bảng số.
-//   node kiem_thu/khao_sat_kieu_pha.js [số phút mô phỏng mỗi lần chạy, mặc định 120]
-// Mỗi dòng chạy 6 phương án × 3 hạt giống, nên bảng 120 phút mất khoảng nửa giờ.
+//   node kiem_thu/khao_sat_kieu_pha.js [số phút mỗi lần chạy, mặc định 120] [camera: lt hoặc s3, mặc định lt]
+// Mặc định dùng camera lí tưởng, để so riêng các kiểu chia pha mà không lẫn sai số của camera;
+// "s3" là camera kiểu ESP32-S3-CAM (1 khung/giây, lọc 3 khung) như mặc định của mô phỏng.
+// Mỗi dòng chạy 6 phương án × 3 hạt giống, nên bảng 120 phút mất khoảng nửa giờ (camera s3 lâu hơn chừng 2 lần).
 // Bảng ở README.md lấy từ lệnh này với 120 phút.
 'use strict';
 const QD = require('../web/quyet_dinh.js');
 const MoPhong = require('../web/mo_phong.js');
 
 const PHUT = +(process.argv[2] || 120);
+const CAM = process.argv[3] === 's3' ? {} : { kieu: 0 };
 const HAT = [1, 2, 3];
 const R = QD.KIEU_RIENG, T = QD.KIEU_THANG_TRUOC, D = QD.KIEU_DOI_XUNG;
 
@@ -15,7 +18,8 @@ const R = QD.KIEU_RIENG, T = QD.KIEU_THANG_TRUOC, D = QD.KIEU_DOI_XUNG;
 function chay(cai, kieu, hat) {
   const ts = QD.thamSoMacDinh();
   ts.kieu_pha = Array.isArray(kieu) ? R : kieu;
-  const mp = new MoPhong({ hat, ts, cai: JSON.parse(JSON.stringify(cai)) });
+  const c = JSON.parse(JSON.stringify(cai)); c.camera = Object.assign({}, CAM);
+  const mp = new MoPhong({ hat, ts, cai: c });
   if (Array.isArray(kieu)) mp.dk.kieuChoChuKi = () => kieu.slice();
   let dem = 0, thang_truoc = [0, 0];
   for (let i = 0; i < PHUT * 1500; i++) {
@@ -49,7 +53,8 @@ const CA = [
 ];
 
 const so = (x) => x.toFixed(1).padStart(9);
-console.log('Thời gian chờ trung bình (giây), ' + PHUT + ' phút mô phỏng, trung bình ' + HAT.length + ' lần chạy, thông số mặc định.');
+console.log('Thời gian chờ trung bình (giây), ' + PHUT + ' phút mô phỏng, trung bình ' + HAT.length + ' lần chạy, thông số mặc định, ' +
+  (CAM.kieu === 0 ? 'camera lí tưởng.' : 'camera ESP32-S3-CAM.'));
 console.log('"Dọc T" là trục dọc thẳng trước, trục ngang riêng; "Ngang T" thì ngược lại. Hai cột cuối: phần thời gian tự học giữ kiểu thẳng trước.');
 console.log('Dòng xe (mỗi hướng)'.padEnd(34) + 'Riêng'.padStart(9) + 'Th.trước'.padStart(9) + 'Đối xứng'.padStart(9) + 'Dọc T'.padStart(9) + 'Ngang T'.padStart(9) +
   'Tự học'.padStart(9) + '  so với riêng  so với tốt nhất   dọc   ngang');

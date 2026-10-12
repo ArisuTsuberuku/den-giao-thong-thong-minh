@@ -435,7 +435,11 @@
     if (hc.l_truc >= 0 && hc.l_do) {
       var k = hc.l_truc, ra = hc.ra[k], ng = ts.hoc_nguong, cach = ts.hoc_cach_thu;
       if (!this.hocDangBat() || hc.l_hong) {
-        if (hc.l_thu) this.baoSuKien('hoc_huy', k);
+        if (hc.l_thu) {
+          // lượt thử bị hỏng (xe ưu tiên, mất camera): không thử lại ngay lượt sau mà chờ đủ một khoảng
+          if (hc.kieu[k] === QD.KIEU_RIENG) { hc.dem[k] = 0; hc.lien[k] = 0; }
+          this.baoSuKien('hoc_huy', k);
+        }
       } else if (ra > 0 && ra >= ts.hoc_so_xe && hc.l_n > 0) {
         var c = ts.t_vang + ts.t_do + ts.cat_som, i = hc.l_qt ? 1 : 0;
         if (hc.l_kieu === QD.KIEU_RIENG) {
@@ -447,8 +451,10 @@
           var mau = hc.b[i] < 0 ? 0 : 2 * c + hc.b[i] * ra;   // thời gian kiểu riêng cần cho cùng số xe
           hc.tuoi[k]++;
           if (mau <= 0) {
-            // chưa có mốc "riêng" cùng loại để so: đang giữ "thẳng trước" thì lượt sau chạy "riêng" để lấy mốc
+            // Chưa có mốc "riêng" cùng loại để so nên không chấm được lượt này. Đang giữ "thẳng trước" thì
+            // lượt sau chạy "riêng" để lấy mốc; đang giữ "riêng" thì bỏ lần thử, chạy "riêng" tiếp để có mốc.
             if (hc.kieu[k] !== QD.KIEU_RIENG) hc.tuoi[k] = 4 * cach;
+            else { hc.dem[k] = 0; hc.lien[k] = 0; }
           } else {
             var q = chiaNguyen((hc.l_g + hc.l_n * c) * 100, mau);
             if (hc.kieu[k] !== QD.KIEU_RIENG) {            // đang giữ "thẳng trước"

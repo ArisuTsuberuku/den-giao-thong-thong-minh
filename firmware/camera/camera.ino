@@ -43,7 +43,7 @@ void loop() {
 #include "nhan_dien.h"
 #include "gui_tin.h"
 
-BoLoc bo_loc;
+BoLoc bo_loc(SO_KHUNG_LOC);
 VatThe xe[SO_XE_TOI_DA];
 uint32_t t_gui = 0, t_in = 0, so_khung = 0, t_khung = 0;
 KetQuaKhung da_in = {255, 255, 255, 255};
@@ -58,7 +58,7 @@ void setup() {
     while (true) delay(1000);
   }
   if (!guiTinKhoiTao()) Serial.println("KHÔNG khởi tạo được ESP-NOW; vẫn đếm và in ra Serial.");
-  Serial.printf("ESP-NOW kênh %d, %d gói mỗi giây.\n", KENH_WIFI, 1000 / CHU_KI_GUI_MS);
+  Serial.printf("ESP-NOW kênh %d, gửi sau mỗi khung, tối đa %d gói mỗi giây.\n", KENH_WIFI, 1000 / CHU_KI_GUI_MS);
 }
 
 void loop() {

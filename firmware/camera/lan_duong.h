@@ -1,4 +1,5 @@
-// lan_duong.h — Gán từng xe vào làn bằng 2 tứ giác, rồi lọc nhiễu qua 5 khung gần nhất.
+// lan_duong.h — Gán từng xe vào làn bằng 2 tứ giác, rồi lọc nhiễu qua vài khung gần nhất.
+// Bản JavaScript tương ứng nằm trong web/may_anh.js (kiem_thu/so_khop.js so hai bản với nhau).
 // Không dùng hàm nào của Arduino nên thử được trên máy tính (kiem_thu/thu_camera.cpp).
 #pragma once
 #include <stdint.h>
@@ -50,16 +51,18 @@ inline KetQuaKhung phanLan(const VatThe *v, int n, const CauHinhCam &ch) {
   return kq;
 }
 
-// Lọc nhiễu: s và l lấy trung vị 5 khung gần nhất; emg chỉ bật khi ít nhất 3/5 khung thấy xe ưu tiên.
-// Loại xe ưu tiên là loại xuất hiện ở nhiều khung nhất trong 5 khung đó (bằng nhau thì lấy hạng cao hơn).
+// Lọc nhiễu qua n khung gần nhất (n = 1, 3 hoặc 5): s và l lấy trung vị; emg chỉ bật khi quá nửa số
+// khung thấy xe ưu tiên (2/3 hoặc 3/5). Loại xe ưu tiên là loại xuất hiện ở nhiều khung nhất (bằng nhau
+// thì lấy hạng cao hơn). Camera chỉ xử lí được chừng 1 khung mỗi giây, nên lọc n khung là trễ thêm
+// khoảng (n − 1) / 2 giây: 3 khung là mức cân bằng giữa chống nhiễu và phản ứng nhanh.
 class BoLoc {
 public:
-  BoLoc() : so_khung(0), vi_tri(0) {}
+  explicit BoLoc(int so = 5) : n(so >= 5 ? 5 : (so >= 3 ? 3 : 1)), so_khung(0), vi_tri(0) {}
 
   void them(const KetQuaKhung &k) {
     khung[vi_tri] = k;
-    vi_tri = (vi_tri + 1) % 5;
-    if (so_khung < 5) so_khung++;
+    vi_tri = (vi_tri + 1) % n;
+    if (so_khung < n) so_khung++;
   }
 
   KetQuaKhung layKetQua() const {
@@ -76,7 +79,7 @@ public:
     }
     kq.s = trungVi(a, so_khung);
     kq.l = trungVi(b, so_khung);
-    if (n1 + n2 >= 3) {
+    if (n1 + n2 >= n / 2 + 1) {
       kq.emg = (n2 > n1) ? 2 : 1;
       kq.ut = 1;
       for (uint8_t k = 2; k <= 4; k++) if (so_loai[k] > so_loai[kq.ut]) kq.ut = k;
@@ -86,7 +89,7 @@ public:
 
 private:
   KetQuaKhung khung[5];
-  int so_khung, vi_tri;
+  int n, so_khung, vi_tri;
 
   static uint8_t trungVi(uint8_t *a, int n) {
     for (int i = 1; i < n; i++) {                 // sắp xếp chèn

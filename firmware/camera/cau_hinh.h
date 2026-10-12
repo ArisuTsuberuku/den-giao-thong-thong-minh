@@ -20,7 +20,10 @@
 
 // ---------- 3) Truyền tin ----------
 #define KENH_WIFI 1              // kênh ESP-NOW, phải trùng với KENH_WIFI của board trung tâm
-#define CHU_KI_GUI_MS 250        // 4 gói mỗi giây
+#define CHU_KI_GUI_MS 250        // gửi kết quả ngay sau mỗi khung, nhưng không dày hơn 4 gói mỗi giây. Mô hình chạy
+                                 // chừng 1 khung/giây nên thực tế là 1 gói mỗi giây (trung tâm báo mất camera sau 3 s)
+#define SO_KHUNG_LOC 3           // lọc nhiễu qua 3 khung gần nhất (1: không lọc, 3 hoặc 5). Ở 1 khung/giây, mỗi 2 khung
+                                 // lọc thêm là trễ thêm 1 giây; mô phỏng cho thấy 3 khung là hợp
 #define TOC_DO_SERIAL 115200
 #define MAT_KHAU_WIFI "12345678" // chế độ thu ảnh: camera phát WiFi tên "CAM<số>-SaBan", vào http://192.168.4.1
 
@@ -50,14 +53,22 @@
 #define ANH_CAO 240
 
 // Mỗi dòng: { roi_x, roi_y, roi_w, roi_h, {4 góc làn ngoài}, {4 góc làn trong} }  (kiểu CauHinhCam trong lan_duong.h)
-// Các số dưới đây chỉ là giá trị tạm. Chạy chế độ thu ảnh, vẽ ROI và bấm 4 góc từng làn trên
-// trang web của camera, rồi dán dòng nó in ra vào đúng ô của camera đó.
+//
+// CÁCH GẮN BOARD: cạnh dài của khung hình (320 điểm ảnh) phải nằm DỌC theo đường. Ống kính thường của
+// OV2640 nhìn được 55° theo cạnh dài nhưng chỉ 43° theo cạnh ngắn; từ độ cao 285 mm, chúc 26°, cạnh dài
+// dọc đường thì thấy trọn vùng chờ 304 mm, còn cạnh ngắn dọc đường thì mất hẳn chiếc xe đứng sát vạch dừng
+// (tính trong web/may_anh.js, xem README.md).
+//
+// Các số dưới đây tính từ hình học thiết kế (ống kính cao 285 mm, chúc 26°, nằm trước vạch dừng 14 mm,
+// ngay trên vạch chia hai làn chờ), với vạch dừng ở mép phải ảnh và làn trong ở phía trên. Chúng chỉ là
+// điểm xuất phát: lắp xong phải chạy chế độ thu ảnh, vẽ ROI và bấm 4 góc từng làn trên trang web của
+// camera, rồi dán dòng nó in ra vào đúng ô của camera đó. Ảnh bị lộn 180° thì đặt LAT_DOC và LAT_NGANG thành 1.
 static const CauHinhCam CAU_HINH_CAM[5] = {
   { 0, 0, 0, 0, {{0, 0}, {0, 0}, {0, 0}, {0, 0}}, {{0, 0}, {0, 0}, {0, 0}, {0, 0}} },                          // không dùng
-  { 100, 0, 120, 240, {{100, 0}, {160, 0}, {160, 239}, {100, 239}}, {{160, 0}, {220, 0}, {220, 239}, {160, 239}} },   // CAM 1
-  { 100, 0, 120, 240, {{100, 0}, {160, 0}, {160, 239}, {100, 239}}, {{160, 0}, {220, 0}, {220, 239}, {160, 239}} },   // CAM 2
-  { 100, 0, 120, 240, {{100, 0}, {160, 0}, {160, 239}, {100, 239}}, {{160, 0}, {220, 0}, {220, 239}, {160, 239}} },   // CAM 3
-  { 100, 0, 120, 240, {{100, 0}, {160, 0}, {160, 239}, {100, 239}}, {{160, 0}, {220, 0}, {220, 239}, {160, 239}} }    // CAM 4
+  { 43, 52, 277, 136, {{51, 159}, {51, 120}, {336, 120}, {336, 180}}, {{51, 120}, {51, 81}, {336, 60}, {336, 120}} },   // CAM 1
+  { 43, 52, 277, 136, {{51, 159}, {51, 120}, {336, 120}, {336, 180}}, {{51, 120}, {51, 81}, {336, 60}, {336, 120}} },   // CAM 2
+  { 43, 52, 277, 136, {{51, 159}, {51, 120}, {336, 120}, {336, 180}}, {{51, 120}, {51, 81}, {336, 60}, {336, 120}} },   // CAM 3
+  { 43, 52, 277, 136, {{51, 159}, {51, 120}, {336, 120}, {336, 180}}, {{51, 120}, {51, 81}, {336, 60}, {336, 120}} }    // CAM 4
 };
 
 // ---------- 6) Mô hình Edge Impulse (chỉ dùng ở chế độ đếm) ----------

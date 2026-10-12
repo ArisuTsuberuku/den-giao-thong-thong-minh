@@ -9,6 +9,7 @@ const os = require('os');
 const path = require('path');
 const QD = require('../web/quyet_dinh.js');
 const DieuKhien = require('../web/dieu_khien.js');
+const MayAnh = require('../web/may_anh.js');
 
 const thu_muc = fs.mkdtempSync(path.join(os.tmpdir(), 'so_khop_'));
 const tep_chay = path.join(thu_muc, 'thu_cpp');
@@ -78,6 +79,28 @@ for (let lan = 0; lan < 250; lan++) {
   }
 }
 
+// ---- firmware camera: bộ lọc khung và gán làn (lan_duong.h so với may_anh.js) ----
+let so_lenh_cam = 0;
+for (let lan = 0; lan < 300; lan++) {
+  lenh.push('LM ' + [1, 3, 5, 5, 3, 4, 0, 7][lan % 8]);
+  let co_ut = false;
+  for (let i = 0; i < 60; i++) {
+    if (r() < 0.1) co_ut = !co_ut;
+    const emg = co_ut && r() < 0.8 ? ng(1, 2) : (r() < 0.05 ? ng(1, 2) : 0);
+    lenh.push(['LK', r() < 0.8 ? 3 : ng(0, 9), r() < 0.8 ? 2 : ng(0, 9), emg, emg && r() < 0.9 ? ng(1, 4) : (r() < 0.1 ? ng(0, 5) : 0)].join(' '));
+    so_lenh_cam++;
+  }
+}
+for (let lan = 0; lan < 3000; lan++) {
+  // hai tứ giác kề nhau, méo ngẫu nhiên như làn nhìn phối cảnh; xe rải khắp khung 320 × 240
+  const x0 = ng(20, 120), x1 = x0 + ng(30, 90), x2 = x1 + ng(30, 90), y0 = ng(0, 60), y1 = ng(160, 239), lech = ng(-40, 40);
+  const g = [x0 + lech, y0, x1 + lech, y0, x1, y1, x0, y1, x1 + lech, y0, x2 + lech, y0, x2, y1, x1, y1];
+  const n = ng(0, 12), v = [];
+  for (let i = 0; i < n; i++) v.push(ng(0, 319), ng(0, 239), r() < 0.8 ? 0 : ng(0, 5));
+  lenh.push(['PL'].concat(g, [n], v).join(' '));
+  so_lenh_cam++;
+}
+
 // ---- bản JavaScript chạy kịch bản ----
 // Bản JS không có bộ đếm 32 bit, nên với kịch bản qua chỗ quay vòng ta chạy bằng thời gian
 // chưa quay vòng rồi in ra phần 32 bit thấp.
@@ -85,6 +108,7 @@ const ra_js = [], dem_sk = {};   // dem_sk: số lần mỗi loại sự kiện 
 {
   const ts = QD.thamSoMacDinh();
   let dk = new DieuKhien(ts);
+  let loc = new MayAnh.BoLoc(5);
   let goc = 0, t_truoc = 0;                    // goc: số lần đã quay vòng × 2^32
   const moRong = (t32) => { if (t32 < t_truoc) goc += 4294967296; t_truoc = t32; return goc + t32; };
   for (const dong of lenh) {
@@ -100,6 +124,18 @@ const ra_js = [], dem_sk = {};   // dem_sk: số lần mỗi loại sự kiện 
       dk = new DieuKhien(ts); goc = 0; t_truoc = v[0];
       dk.khiSuKien = (loai) => { dem_sk[loai] = (dem_sk[loai] || 0) + 1; };
       dk.khoiDong(v[0]);
+    }
+    else if (p[0] === 'LM') loc = new MayAnh.BoLoc(v[0]);
+    else if (p[0] === 'LK') {
+      loc.them({ s: v[0], l: v[1], emg: v[2], ut: v[3] });
+      const kq = loc.layKetQua();
+      ra_js.push(['L', kq.s, kq.l, kq.emg, kq.ut].join(' '));
+    } else if (p[0] === 'PL') {
+      const q = (i) => [0, 1, 2, 3].map(k => ({ x: v[i + k * 2], y: v[i + k * 2 + 1] }));
+      const vat = [];
+      for (let i = 0; i < v[16]; i++) vat.push({ x: v[17 + i * 3], y: v[18 + i * 3], loai: v[19 + i * 3] });
+      const kq = MayAnh.phanLan(vat, q(0), q(8));
+      ra_js.push(['P', kq.s, kq.l, kq.emg, kq.ut].join(' '));
     }
     else if (p[0] === 'D') dk.nhanDem(v[0], v[1], v[2], v[3], moRong(v[4]), v[5] !== 0, v[6]);
     else if (p[0] === 'T') {
@@ -132,5 +168,6 @@ console.log('Đã so ' + n + ' dòng kết quả (' + lenh.length + ' lệnh).')
 console.log('Kịch bản có: ' + (dem_sk.chu_ki || 0) + ' lần chốt kế hoạch, ' + (dem_sk.cat_som || 0) + ' lần cắt xanh sớm, ' +
   (dem_sk.uu_tien || 0) + ' lần ưu tiên; tự học: ' + (dem_sk.hoc_thu || 0) + ' lượt chạy kiểu khác, ' + (dem_sk.hoc_nhan || 0) + ' lần đổi kiểu, ' +
   (dem_sk.hoc_tra || 0) + ' lần thử không đạt, ' + (dem_sk.hoc_huy || 0) + ' lần hủy.');
+console.log('Firmware camera: ' + so_lenh_cam + ' lệnh lọc khung và gán làn.');
 console.log(khac === 0 ? 'ĐẠT: bản C++ và bản JavaScript giống nhau hoàn toàn.' : 'KHÔNG ĐẠT.');
 process.exit(khac === 0 ? 0 : 1);

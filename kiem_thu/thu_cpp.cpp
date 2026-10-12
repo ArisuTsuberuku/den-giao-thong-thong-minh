@@ -5,14 +5,19 @@
 //   BD t                       khởi động bộ điều khiển
 //   D id s l emg t giu ut      nhận một bản tin đếm xe
 //   T t                        cập nhật tới thời điểm t, in trạng thái
+//   LM n                       (firmware camera) bộ lọc mới qua n khung
+//   LK s l emg ut              thêm một khung vào bộ lọc, in kết quả đã lọc
+//   PL <16 số góc 2 tứ giác> n rồi n bộ (x y loai)   gán xe vào làn, in kết quả
 #include <cstdio>
 #include <cstring>
 #include "../firmware/trung_tam/dieu_khien.h"
+#include "../firmware/camera/lan_duong.h"
 
 int main() {
   ThamSo ts;
   memset(&ts, 0, sizeof(ts));
   DieuKhien dk(&ts);
+  BoLoc loc(5);
   char lenh[8];
   while (scanf("%7s", lenh) == 1) {
     if (!strcmp(lenh, "TS")) {
@@ -43,6 +48,35 @@ int main() {
       unsigned t;
       if (scanf("%d %d %d %d %u %d %d", &id, &s, &l, &emg, &t, &giu, &ut) != 7) return 1;
       dk.nhanDem(id, s, l, emg, t, giu != 0, ut);
+    } else if (!strcmp(lenh, "LM")) {
+      int n;
+      if (scanf("%d", &n) != 1) return 1;
+      loc = BoLoc(n);
+    } else if (!strcmp(lenh, "LK")) {
+      unsigned v[4];
+      for (int i = 0; i < 4; i++) if (scanf("%u", &v[i]) != 1) return 1;
+      KetQuaKhung k = {(uint8_t)v[0], (uint8_t)v[1], (uint8_t)v[2], (uint8_t)v[3]};
+      loc.them(k);
+      KetQuaKhung kq = loc.layKetQua();
+      printf("L %u %u %u %u\n", (unsigned)kq.s, (unsigned)kq.l, (unsigned)kq.emg, (unsigned)kq.ut);
+    } else if (!strcmp(lenh, "PL")) {
+      CauHinhCam ch;
+      ch.roi_x = 0; ch.roi_y = 0; ch.roi_w = 320; ch.roi_h = 240;
+      int g[16], n;
+      for (int i = 0; i < 16; i++) if (scanf("%d", &g[i]) != 1) return 1;
+      for (int i = 0; i < 4; i++) {
+        ch.lan_ngoai[i].x = (int16_t)g[i * 2]; ch.lan_ngoai[i].y = (int16_t)g[i * 2 + 1];
+        ch.lan_trong[i].x = (int16_t)g[8 + i * 2]; ch.lan_trong[i].y = (int16_t)g[8 + i * 2 + 1];
+      }
+      if (scanf("%d", &n) != 1 || n < 0 || n > 32) return 1;
+      VatThe vat[32];
+      for (int i = 0; i < n; i++) {
+        int x, y, loai;
+        if (scanf("%d %d %d", &x, &y, &loai) != 3) return 1;
+        vat[i].x = (float)x; vat[i].y = (float)y; vat[i].loai = (uint8_t)loai;
+      }
+      KetQuaKhung kq = phanLan(vat, n, ch);
+      printf("P %u %u %u %u\n", (unsigned)kq.s, (unsigned)kq.l, (unsigned)kq.emg, (unsigned)kq.ut);
     } else if (!strcmp(lenh, "T")) {
       unsigned t;
       if (scanf("%u", &t) != 1) return 1;

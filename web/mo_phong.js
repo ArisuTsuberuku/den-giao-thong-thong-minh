@@ -1,11 +1,13 @@
 // mo_phong.js — Mô phỏng xe chạy trên sa bàn Lần 08 (đơn vị mm, tấm 1000 × 1000).
 // Không đụng tới trang web nên chạy được cả bằng Node (xem kiem_thu/thu_mo_phong.js).
 // Đèn do đúng bộ quyet_dinh.js + dieu_khien.js điều khiển, giống board trung tâm.
-// "Camera" ở đây đếm xe có tâm nằm trong vùng chờ của từng làn và gửi {id, seq, s, l, emg, ut}.
+// Camera có hai kiểu (cai.camera.kieu): kiểu ESP32-S3-CAM chạy mô hình trong may_anh.js (góc nhìn
+// phối cảnh, cắt ROI, nhận diện theo lưới ô, 1 khung mỗi giây, lọc nhiễu); kiểu lí tưởng đếm đúng
+// tuyệt đối số xe có tâm nằm trong vùng chờ, 4 lần mỗi giây. Cả hai gửi {id, seq, s, l, emg, ut}.
 (function (goc, tao) {
-  if (typeof module === 'object' && module.exports) module.exports = tao(require('./quyet_dinh.js'), require('./dieu_khien.js'));
-  else goc.MoPhong = tao(goc.QuyetDinh, goc.DieuKhien);
-})(typeof self !== 'undefined' ? self : this, function (QD, DieuKhien) {
+  if (typeof module === 'object' && module.exports) module.exports = tao(require('./quyet_dinh.js'), require('./dieu_khien.js'), require('./may_anh.js'));
+  else goc.MoPhong = tao(goc.QuyetDinh, goc.DieuKhien, goc.MayAnh);
+})(typeof self !== 'undefined' ? self : this, function (QD, DieuKhien, MayAnh) {
   'use strict';
 
   // ---------- Kích thước sa bàn Lần 08 (theo Decal sa ban/tao_decal_sa_ban.py) ----------
@@ -22,9 +24,10 @@
   var R_VAO = 30;              // bán kính rẽ từ làn bao vào nhánh và ngược lại
 
   var XE_DAI = 68, XE_RONG = 34;   // cỡ xe 100 %: xe Hot Wheels trên sa bàn thật (4 xe mỗi làn chờ)
+  var XE_CAO = 26;                 // chiều cao xe ở cỡ 100 % (chỉ dùng cho ảnh camera)
   var DS = 4;                  // bước lấy mẫu đường đi (mm)
   var NHIN_XA = 150;           // tầm nhìn phía trước của xe (mm)
-  var DT_CAMERA = 250;         // camera gửi 4 gói mỗi giây
+  var DT_CAMERA = 250;         // camera lí tưởng gửi 4 gói mỗi giây
 
   // Xe ưu tiên, xếp theo thứ tự ưu tiên "hỏa → sự → công → thương": số nhỏ hơn được đi trước.
   var TEN_UU_TIEN = ['', 'cứu hỏa', 'quân sự', 'công an', 'cứu thương'];
@@ -174,6 +177,8 @@
     ngoai: { x0: MEP, x1: MEP + LAN, y0: MEP_BAO, y1: Y_VACH + 5 },
     trong: { x0: MEP + LAN, x1: MEP + 2 * LAN, y0: MEP_BAO, y1: Y_VACH + 5 }
   };
+  // Hình học mà may_anh.js cần để đặt camera lên khung đèn
+  var HINH_CAM = { MEP: MEP, LAN: LAN, Y_VACH: Y_VACH, MEP_BAO: MEP_BAO, quay: quay, quayNguoc: quayNguoc };
 
   function caiDatMacDinh() {
     return {
@@ -182,7 +187,8 @@
       ti_le_phai: 15,                  // % xe rẽ phải (đi làn riêng, không qua đèn)
       toc_do: 120,                     // mm/s
       tre_phan_ung: 1000,              // ms: xe đang đứng yên thấy đi được (đèn xanh, xe trước đã rời) thì chừng này sau mới lăn bánh
-      co_xe: 75                        // % so với xe Hot Wheels 68 × 34 mm. 75 % là đúng tỉ lệ ô tô thật so với bề rộng làn
+      co_xe: 75,                       // % so với xe Hot Wheels 68 × 34 mm. 75 % là đúng tỉ lệ ô tô thật so với bề rộng làn
+      camera: MayAnh.thamSoMacDinh()   // camera của 4 hướng (xem may_anh.js)
     };
   }
 
@@ -196,7 +202,9 @@
     this.cai = tuy_chon.cai || {};
     var mac_dinh = caiDatMacDinh();
     for (var k in mac_dinh) if (this.cai[k] === undefined) this.cai[k] = mac_dinh[k];
+    for (k in mac_dinh.camera) if (this.cai.camera[k] === undefined) this.cai.camera[k] = mac_dinh.camera[k];
     this.ts = tuy_chon.ts || QD.thamSoMacDinh();
+    this.luu_khung = false;            // true: giữ lại vị trí xe của từng khung camera để vẽ (trang web bật)
     this.khiSuKien = null;             // hàm(loại, dữ liệu, mô phỏng)
     this.datLai();
   }
@@ -222,20 +230,110 @@
     this.hang_cho = [[], [], [], [], []];   // xe đã tới nhưng chưa có chỗ vào sa bàn
     this.ngau_nhien = taoNgauNhien(this.hat);
     this.ngau_nhien_mau = taoNgauNhien(this.hat + 77);
+    this.ngau_nhien_cam = taoNgauNhien(this.hat + 4242);   // nhiễu của mô hình nhận diện, tách khỏi dòng xe
     this.dem = [null];
     for (var h = 1; h <= 4; h++) this.dem.push({ s: 0, l: 0, emg: 0, ut: 0, seq: 0 });
     this.t_camera = 0;
+    this.datCamera();
     this.thong_ke = [thongKeMoi(), thongKeMoi()];   // [cố định, thích ứng]
     this.so_xe_den = 0;
     this.so_lan_chan_nhau = 0;
     this.dk = new DieuKhien(this.ts);
     this.che_do_chay = this.ts.che_do === QD.CHE_DO_CO_DINH ? 0 : 1;   // chế độ của chu kì đang chạy (đổi chế độ chỉ có hiệu lực từ chu kì sau)
+    this.so_uu_tien_nham = 0;                // số lần mở ưu tiên cho một hướng không hề có xe ưu tiên (camera nhìn nhầm)
     this.dk.khiSuKien = function (loai, dl) {
       if (loai === 'chu_ki') toi.che_do_chay = toi.ts.che_do === QD.CHE_DO_CO_DINH ? 0 : 1;
+      if (loai === 'uu_tien') {
+        var co = false;
+        for (var i = 0; i < toi.xe.length; i++) if (toi.xe[i].uu_tien && toi.xe[i].h === dl && !toi.xe[i].da_qua) co = true;
+        if (!co) toi.so_uu_tien_nham++;
+      }
       if (toi.khiSuKien) toi.khiSuKien(loai, dl, toi);
     };
     this.dk.khoiDong(0);
-    this.guiCamera();
+    this.chayCamera();
+  };
+
+  // Dựng lại 4 camera theo cai.camera (gọi lại khi đổi thông số camera).
+  MoPhong.prototype.datCamera = function () {
+    var c = this.cai.camera, T = 1000 / Math.max(0.1, c.khung_giay);
+    this.cam = [null];
+    for (var h = 1; h <= 4; h++) {
+      this.cam.push({
+        mo_hinh: MayAnh.tao(h, c, HINH_CAM),
+        loc: new MayAnh.BoLoc(c.so_khung_loc),
+        t_chup: this.t + (h - 1) * T / 4,     // 4 camera chụp lệch nhau
+        t_xong: 0, cho: null,                 // khung đang xử lí
+        kq: { s: 0, l: 0, emg: 0, ut: 0 },    // kết quả đã lọc, sẽ gửi đi
+        khung: null, so_khung: 0,             // khung xử lí xong gần nhất (để vẽ), số khung đã xử lí
+        t_gui: -1e12,                         // lần gửi gần nhất
+        tk: { khung: 0, tho_dung: 0, loc_dung: 0, lech: 0 }   // thống kê độ chính xác so với số xe thật
+      });
+    }
+  };
+
+  // Số xe thật trong vùng chờ của hướng h (cái mà camera lí tưởng đếm).
+  MoPhong.prototype.demThat = function (h) {
+    var s = 0, l = 0, emg = 0, ut = 0;
+    for (var i = 0; i < this.xe.length; i++) {
+      var lan = MoPhong.lanCuaDiem(this.xe[i].x, this.xe[i].y, h);
+      if (!lan) continue;
+      if (lan === 'ngoai') s++; else l++;
+      var loai = this.xe[i].uu_tien;                   // có nhiều xe ưu tiên thì báo xe hạng cao nhất
+      if (loai && (ut === 0 || loai < ut)) { ut = loai; emg = lan === 'ngoai' ? 1 : 2; }
+    }
+    return { s: s, l: l, emg: emg, ut: ut };
+  };
+
+  // Các xe nằm trong tầm camera hướng h, kèm kích thước, để chiếu lên ảnh.
+  MoPhong.prototype.xeChoCamera = function (h) {
+    var cm = this.cam[h].mo_hinh, k = this.xe_dai / XE_DAI, ds = [];
+    for (var i = 0; i < this.xe.length; i++) {
+      var x = this.xe[i];
+      if (Math.hypot(x.x - cm.goc_x, x.y - cm.goc_y) > 520) continue;
+      ds.push({ x: x.x, y: x.y, goc: x.goc, dai: this.xe_dai, rong: this.xe_rong, cao: XE_CAO * k, loai: x.uu_tien || 0, mau: x.mau, id: x.id });
+    }
+    return ds;
+  };
+
+  // Camera của 4 hướng. Kiểu ESP32-S3-CAM làm đúng như vòng loop() của firmware/camera/camera.ino:
+  // chụp → (một chu kì xử lí sau) có kết quả → lọc → gửi ngay nếu đã quá gui_ms kể từ lần gửi trước.
+  // Vì loop() đứng chờ mô hình chạy xong nên ở 1 khung/giây mỗi giây chỉ có 1 gói; trước khung đầu tiên thì chưa có gói nào.
+  MoPhong.prototype.chayCamera = function () {
+    var c = this.cai.camera, h, cm;
+    if (!c.kieu) {
+      if (this.t === 0 || this.t - this.t_camera >= DT_CAMERA) this.guiCamera();
+      return;
+    }
+    var T = 1000 / Math.max(0.1, c.khung_giay);
+    for (h = 1; h <= 4; h++) {
+      cm = this.cam[h];
+      if (cm.cho && this.t >= cm.t_xong) {             // xử lí xong khung đã chụp
+        var tho = MayAnh.phanLan(cm.cho.vat, cm.mo_hinh.lan_ngoai, cm.mo_hinh.lan_trong);
+        cm.loc.them(tho);
+        cm.kq = cm.loc.layKetQua();
+        cm.cho.tho = tho;
+        cm.khung = cm.cho; cm.cho = null; cm.so_khung++;
+        var that = this.demThat(h);
+        cm.tk.khung++;
+        if (tho.s === cm.khung.that.s && tho.l === cm.khung.that.l) cm.tk.tho_dung++;     // đếm đúng lúc chụp
+        if (cm.kq.s === that.s && cm.kq.l === that.l) cm.tk.loc_dung++;                 // số gửi đi còn đúng với lúc này
+        cm.tk.lech += Math.abs(cm.kq.s - that.s) + Math.abs(cm.kq.l - that.l);
+        if (this.t - cm.t_gui >= c.gui_ms) {
+          cm.t_gui = this.t;
+          var d = this.dem[h];
+          d.s = cm.kq.s; d.l = cm.kq.l; d.emg = cm.kq.emg; d.ut = cm.kq.ut; d.seq++;
+          this.dk.nhanDem(h, cm.kq.s, cm.kq.l, cm.kq.emg, this.t, false, cm.kq.ut);
+        }
+      }
+      if (!cm.cho && this.t >= cm.t_chup) {            // chụp khung mới
+        var ds = this.xeChoCamera(h);
+        var nd = MayAnh.nhanDien(cm.mo_hinh, ds, this.ngau_nhien_cam);
+        cm.cho = { t: this.t, vat: nd.vat, o: nd.o, that: this.demThat(h), xe: this.luu_khung ? ds : null };
+        cm.t_xong = this.t + T;
+        cm.t_chup = this.t + T;
+      }
+    }
   };
 
   // Số xe đang chiếm chỗ ở một làn của vùng chờ (xe rẽ phải tính vào làn ngoài cho tới khi tách ra).
@@ -437,24 +535,24 @@
     }
     this.xe = con_lai;
 
-    if (this.t - this.t_camera >= DT_CAMERA) this.guiCamera();
+    this.chayCamera();
   };
 
-  // "Camera" của 4 hướng: đếm xe theo làn rồi gửi cho bộ điều khiển.
+  // Camera lí tưởng: đếm đúng số xe trong vùng chờ rồi gửi ngay cho bộ điều khiển.
   MoPhong.prototype.guiCamera = function () {
     this.t_camera = this.t;
     for (var h = 1; h <= 4; h++) {
-      var d = this.dem[h], s = 0, l = 0, emg = 0, ut = 0;
-      for (var i = 0; i < this.xe.length; i++) {
-        var lan = MoPhong.lanCuaDiem(this.xe[i].x, this.xe[i].y, h);
-        if (!lan) continue;
-        if (lan === 'ngoai') s++; else l++;
-        var loai = this.xe[i].uu_tien;                   // có nhiều xe ưu tiên thì báo xe hạng cao nhất
-        if (loai && (ut === 0 || loai < ut)) { ut = loai; emg = lan === 'ngoai' ? 1 : 2; }
-      }
-      d.s = s; d.l = l; d.emg = emg; d.ut = ut; d.seq++;
-      this.dk.nhanDem(h, s, l, emg, this.t, false, ut);
+      var d = this.dem[h], kq = this.demThat(h);
+      d.s = kq.s; d.l = kq.l; d.emg = kq.emg; d.ut = kq.ut; d.seq++;
+      this.dk.nhanDem(h, kq.s, kq.l, kq.emg, this.t, false, kq.ut);
     }
+  };
+
+  // Độ chính xác của camera kiểu ESP32-S3-CAM, gộp cả 4 hướng.
+  MoPhong.prototype.thongKeCamera = function () {
+    var o = { khung: 0, tho_dung: 0, loc_dung: 0, lech: 0 };
+    for (var h = 1; h <= 4; h++) for (var k in o) o[k] += this.cam[h].tk[k];
+    return o;
   };
 
   // Điểm (x, y) trên sa bàn thuộc làn nào trong vùng đếm của camera hướng h? ('ngoai', 'trong' hoặc null)
@@ -515,8 +613,9 @@
   MoPhong.quayNguoc = quayNguoc;
   MoPhong.HINH = {
     C: C, LAN: LAN, MEP: MEP, X_NGOAI: X_NGOAI, X_TRONG: X_TRONG, Y_VACH: Y_VACH, MEP_BAO: MEP_BAO,
-    XE_DAI: XE_DAI, XE_RONG: XE_RONG, VUNG: VUNG, DUONG: DUONG
+    XE_DAI: XE_DAI, XE_RONG: XE_RONG, XE_CAO: XE_CAO, VUNG: VUNG, DUONG: DUONG
   };
+  MoPhong.HINH_CAM = HINH_CAM;
   MoPhong.TEN_UU_TIEN = TEN_UU_TIEN;
   return MoPhong;
 });

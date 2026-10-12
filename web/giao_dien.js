@@ -6,7 +6,7 @@
   var $ = function (id) { return document.getElementById(id); };
 
   var NHIP = 40;                 // một nhịp mô phỏng = 40 ms
-  var KHOA_LUU = 'sa_ban_den_giao_thong_v3';
+  var KHOA_LUU = 'sa_ban_den_giao_thong_v4';
   var mp = new MoPhong({ hat: 2026 });
   var ts = mp.ts, cai = mp.cai;
   var tt = { chay: true, toc_do: 2, hien_vung: false, du: 0, t_truoc: 0, khung: 0,
@@ -99,6 +99,39 @@
     cap_nhat_truot.push(taoTruot($('muc_hoc'), 'ts_hoc_nguong', 'Tự học: phải nhanh hơn ít nhất', 0, 30, 5,
       function () { return ts.hoc_nguong; }, function (v) { ts.hoc_nguong = v; }, function (v) { return soVn(v) + ' %'; }));
 
+    // camera
+    [[0, 'Lí tưởng'], [1, 'ESP32-S3-CAM']].forEach(function (k) {
+      var id = 'cam_kieu_' + k[0];
+      $('chon_cam_kieu').insertAdjacentHTML('beforeend', '<input type="radio" name="cam_kieu" id="' + id + '"><label for="' + id + '">' + k[1] + '</label>');
+      $(id).addEventListener('change', function () { cai.camera.kieu = k[0]; doiCamera('Đổi camera sang kiểu "' + k[1] + '".'); });
+    });
+    [1, 3, 5].forEach(function (n) {
+      var id = 'cam_loc_' + n;
+      $('chon_cam_loc').insertAdjacentHTML('beforeend', '<input type="radio" name="cam_loc" id="' + id + '"><label for="' + id + '">' + (n === 1 ? 'không lọc' : n + ' khung') + '</label>');
+      $(id).addEventListener('change', function () { cai.camera.so_khung_loc = n; doiCamera(''); });
+    });
+    [96, 160].forEach(function (n) {
+      var id = 'cam_dau_vao_' + n;
+      $('chon_cam_dau_vao').insertAdjacentHTML('beforeend', '<input type="radio" name="cam_dau_vao" id="' + id + '"><label for="' + id + '">' + n + ' × ' + n + '</label>');
+      $(id).addEventListener('change', function () { cai.camera.dau_vao = n; doiCamera('Đổi ảnh đưa vào mô hình thành ' + n + ' × ' + n + ' (lưới ' + n / cai.camera.o + ' × ' + n / cai.camera.o + ' ô).'); });
+    });
+    [[1, 'dọc theo đường'], [0, 'ngang đường']].forEach(function (k) {
+      var id = 'cam_xoay_' + k[0];
+      $('chon_cam_xoay').insertAdjacentHTML('beforeend', '<input type="radio" name="cam_xoay" id="' + id + '"><label for="' + id + '">' + k[1] + '</label>');
+      $(id).addEventListener('change', function () { cai.camera.xoay = k[0]; doiCamera('Xoay camera: cạnh dài của khung hình nằm ' + k[1] + '.'); });
+    });
+    var muc_cam = $('muc_cam_ts'), dau_cam = muc_cam.firstChild;
+    [taoTruot(muc_cam, 'cam_khung_giay', 'Xử lí được', 0.5, 5, 0.5,
+       function () { return cai.camera.khung_giay; }, function (v) { cai.camera.khung_giay = v; doiCamera(''); },
+       function (v) { return soVn(v, 1) + ' khung/giây'; }),
+     taoTruot(muc_cam, 'cam_nhan_dung', 'Mô hình nhận ra một xe thấy rõ (giả định)', 80, 100, 1,
+       function () { return cai.camera.nhan_dung; }, function (v) { cai.camera.nhan_dung = v; doiCamera(''); },
+       function (v) { return soVn(v) + ' %'; })
+    ].forEach(function (f) { cap_nhat_truot.push(f); });
+    // đưa hai thanh trượt vừa tạo lên trước hai nhóm nút chọn
+    muc_cam.insertBefore(muc_cam.lastChild.previousSibling, dau_cam);
+    muc_cam.insertBefore(muc_cam.lastChild, dau_cam);
+
     CO_XE.forEach(function (v) {
       var id = 'co_xe_' + v;
       $('chon_co_xe').insertAdjacentHTML('beforeend', '<input type="radio" name="co_xe" id="' + id + '" value="' + v + '"><label for="' + id + '">' + v + ' %</label>');
@@ -183,7 +216,28 @@
     $('ghi_chu_co_xe').textContent = 'Xe dài ' + soVn(mp.xe_dai) + ' mm, mỗi làn chờ chứa ' + mp.suc_chua + ' xe. ' +
       (cai.co_xe === 100 ? 'Đây là cỡ xe Hot Wheels trên sa bàn thật.' : 'Cỡ 100 % là xe Hot Wheels trên sa bàn thật (4 xe mỗi làn); 75 % là đúng tỉ lệ ô tô thật so với bề rộng làn.');
   }
+  // Đổi thông số camera: dựng lại 4 camera, không chạy lại mô phỏng.
+  function doiCamera(loi_ghi) {
+    mp.datCamera();
+    luu();
+    capNhatGhiChuCamera();
+    if (loi_ghi) ghi(loi_ghi);
+  }
+  function capNhatGhiChuCamera() {
+    var c = cai.camera;
+    $('muc_cam_ts').style.display = c.kieu ? '' : 'none';
+    $('ghi_chu_cam').textContent = c.kieu ?
+      'Mỗi camera chụp khung 320 × 240 từ trên khung đèn, cắt vùng 2 làn chờ, co về ' + c.dau_vao + ' × ' + c.dau_vao + ' rồi nhận diện theo lưới ' +
+        c.dau_vao / c.o + ' × ' + c.dau_vao / c.o + ' ô. Kết quả tới trung tâm trễ chừng ' +
+        soVn((1000 / c.khung_giay) * (1.5 + (c.so_khung_loc - 1) / 2) / 1000, 1) + ' s.' :
+      'Đếm đúng tuyệt đối số xe trong vùng chờ, 4 lần mỗi giây. Dùng để so sánh; board thật không làm được như vậy.';
+  }
   function dongBoNut() {
+    $('cam_kieu_' + (cai.camera.kieu ? 1 : 0)).checked = true;
+    ($('cam_loc_' + cai.camera.so_khung_loc) || $('cam_loc_3')).checked = true;
+    $('cam_xoay_' + (cai.camera.xoay ? 1 : 0)).checked = true;
+    ($('cam_dau_vao_' + cai.camera.dau_vao) || $('cam_dau_vao_96')).checked = true;
+    capNhatGhiChuCamera();
     var o_kieu = $('kieu_' + ts.kieu_pha) || $('kieu_' + QD.KIEU_RIENG);
     o_kieu.checked = true;
     capNhatGhiChuKieu();
@@ -217,6 +271,13 @@
       if (isFinite(d.cai.toc_do)) cai.toc_do = Number(d.cai.toc_do);
       if (isFinite(d.cai.tre_phan_ung)) cai.tre_phan_ung = Number(d.cai.tre_phan_ung);
       if (CO_XE.indexOf(d.cai.co_xe) >= 0) cai.co_xe = d.cai.co_xe;
+      var dc = d.cai.camera || {};
+      if (dc.kieu === 0 || dc.kieu === 1) cai.camera.kieu = dc.kieu;
+      if (dc.xoay === 0 || dc.xoay === 1) cai.camera.xoay = dc.xoay;
+      if ([1, 3, 5].indexOf(dc.so_khung_loc) >= 0) cai.camera.so_khung_loc = dc.so_khung_loc;
+      if (dc.dau_vao === 96 || dc.dau_vao === 160) cai.camera.dau_vao = dc.dau_vao;
+      if (dc.khung_giay >= 0.5 && dc.khung_giay <= 5) cai.camera.khung_giay = Number(dc.khung_giay);
+      if (dc.nhan_dung >= 80 && dc.nhan_dung <= 100) cai.camera.nhan_dung = Number(dc.nhan_dung);
       if ([1, 2, 4, 8, 16].indexOf(d.toc_do) >= 0) tt.toc_do = d.toc_do;
       tt.hien_vung = !!d.hien_vung;
     } catch (e) { /* dữ liệu cũ hỏng: dùng mặc định */ }
@@ -395,8 +456,36 @@
   // nên firmware thật cắt ROI quanh 2 làn rồi mới đưa vào mô hình.
   var CAM_X0 = 220, CAM_Y0 = 40, CAM_RONG = 453.33;
   var o_cam = [], c_cam = [];
+  // Ô camera gồm khung hình 320 × 240 ở trên và một dải thông tin ở dưới.
+  var KH_RONG = 320, KH_CAO = 240, DAI_CAO = 104, TI_LE_CAM = (KH_CAO + DAI_CAO) / KH_RONG;
+  var MAU_LOAI = ['#ffe45c', '#ff5a4f', '#9be36b', '#6fb1ff', '#ff9ad5'];   // màu đánh dấu: xe thường, rồi 4 loại xe ưu tiên
+  var TEN_LOP = ['xe'].concat(UT_NHAN.slice(1));
+  var o_khung = [], o_dau_vao = [], khung_da_ve = [], nen_cam = [], nen_goc = null, nen_goc_hong = false;
+
   function veCamera(h) {
-    var o = o_cam[h], c = c_cam[h], k = o.width / CAM_RONG, i;
+    if (cai.camera.kieu) veCameraThat(h); else veCameraLiTuong(h);
+  }
+
+  // dòng trên cùng của ô camera: số đếm đang gửi về trung tâm
+  function veDauCamera(c, o, h, to) {
+    var d = mp.dem[h];
+    c.font = '600 ' + Math.round(11 * to) + 'px ' + 'ui-monospace, Consolas, monospace';
+    c.textBaseline = 'top';
+    c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(0, 0, o.width, 17 * to);
+    c.fillStyle = '#fff'; c.fillText('CAM ' + h, 5 * to, 3 * to);
+    c.fillStyle = '#40c4ff'; c.fillText('s=' + d.s, 52 * to, 3 * to);
+    c.fillStyle = '#ff78dc'; c.fillText('l=' + d.l, 84 * to, 3 * to);
+    c.fillStyle = d.emg ? '#ff5a4f' : '#b9c0c7'; c.fillText('emg=' + d.emg, 116 * to, 3 * to);
+    c.fillStyle = d.ut ? '#ff5a4f' : '#b9c0c7'; c.fillText('ut=' + d.ut, 166 * to, 3 * to);
+  }
+
+  // Camera lí tưởng: nhìn thẳng từ trên xuống, đếm xe có tâm trong vùng chờ.
+  function veCameraLiTuong(h) {
+    var o = o_cam[h], c = c_cam[h], k = o.width / CAM_RONG, cao_khung = o.width * KH_CAO / KH_RONG, i;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = '#1d2024'; c.fillRect(0, 0, o.width, o.height);
+    c.save();
+    c.beginPath(); c.rect(0, 0, o.width, cao_khung); c.clip();
     c.setTransform(k, 0, 0, k, 0, 0);
     c.translate(-CAM_X0, -CAM_Y0);
     c.save();
@@ -424,23 +513,206 @@
         c.fillStyle = '#ffffff'; c.fillText(ten_lop, p[0] - w / 2 + 2, p[1] - cao / 2 - 2);
       }
     }
+    c.restore();
     c.setTransform(1, 0, 0, 1, 0, 0);
     var to = o.width / 230;                                                 // chữ theo cỡ ô
-    var vien = c.createRadialGradient(o.width / 2, o.height / 2, o.height * .35, o.width / 2, o.height / 2, o.width * .75);
-    vien.addColorStop(0, 'rgba(0,0,0,0)'); vien.addColorStop(1, 'rgba(0,0,0,.45)');
-    c.fillStyle = vien; c.fillRect(0, 0, o.width, o.height);
-    c.font = '600 ' + Math.round(11 * to) + 'px ' + 'ui-monospace, Consolas, monospace';
-    c.textBaseline = 'top';
-    var d = mp.dem[h];
-    c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(0, 0, o.width, 17 * to);
-    c.fillStyle = '#fff'; c.fillText('CAM ' + h, 5 * to, 3 * to);
-    c.fillStyle = '#40c4ff'; c.fillText('s=' + d.s, 52 * to, 3 * to);
-    c.fillStyle = '#ff78dc'; c.fillText('l=' + d.l, 84 * to, 3 * to);
-    c.fillStyle = d.emg ? '#ff5a4f' : '#b9c0c7'; c.fillText('emg=' + d.emg, 116 * to, 3 * to);
-    c.fillStyle = d.ut ? '#ff5a4f' : '#b9c0c7'; c.fillText('ut=' + d.ut, 166 * to, 3 * to);
-    c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(0, o.height - 16 * to, o.width, 16 * to);   // bản tin gửi về board trung tâm
-    c.font = Math.round(7.4 * to) + 'px ui-monospace, Consolas, monospace';
-    c.fillStyle = '#e9edf0'; c.fillText(mp.jsonCamera(h), 5 * to, o.height - 12 * to);
+    veDauCamera(c, o, h, to);
+    c.font = Math.round(8.6 * to) + 'px ui-monospace, Consolas, monospace';
+    c.fillStyle = '#b9c0c7';
+    c.fillText('Camera lí tưởng: nhìn thẳng từ trên xuống,', 6 * to, cao_khung + 8 * to);
+    c.fillText('đếm đúng mọi xe có tâm trong vùng chờ,', 6 * to, cao_khung + 20 * to);
+    c.fillText('gửi 4 lần mỗi giây, không trễ.', 6 * to, cao_khung + 32 * to);
+    c.fillStyle = '#e9edf0'; c.font = Math.round(7.4 * to) + 'px ui-monospace, Consolas, monospace';
+    c.fillText(mp.jsonCamera(h), 6 * to, o.height - 12 * to);
+  }
+
+  // ---------- Camera kiểu ESP32-S3-CAM ----------
+  // Nền sa bàn nhìn qua ống kính: với từng điểm ảnh, tìm điểm trên mặt sa bàn mà tia nhìn đi tới rồi lấy màu ở đó.
+  function nenQuaOngKinh(h) {
+    var cam = mp.cam[h].mo_hinh, ts = cai.camera;
+    var khoa = [ts.xoay, ts.nghieng, ts.cao_mm, ts.lui_mm, ts.goc_cheo, nen_xong && !nen_goc_hong ? 1 : 0].join();
+    if (nen_cam[h] && nen_cam[h].khoa === khoa) return nen_cam[h].o;
+    var o = document.createElement('canvas'), u, v, p;
+    o.width = KH_RONG; o.height = KH_CAO;
+    var c = o.getContext('2d');
+    if (nen_xong && !nen_goc && !nen_goc_hong) {
+      try {
+        var nho = document.createElement('canvas');
+        nho.width = nho.height = 1000;
+        nho.getContext('2d').drawImage(nen, 0, 0, 1000, 1000);
+        nen_goc = nho.getContext('2d').getImageData(0, 0, 1000, 1000).data;
+      } catch (e) { nen_goc_hong = true; }      // trình duyệt không cho đọc điểm ảnh: vẽ nền đơn giản
+    }
+    if (nen_goc) {
+      var anh = c.createImageData(KH_RONG, KH_CAO), d = anh.data, i = 0;
+      for (v = 0; v < KH_CAO; v++) {
+        for (u = 0; u < KH_RONG; u++, i += 4) {
+          p = cam.nguoc(u + 0.5, v + 0.5);
+          var x = p ? Math.floor(p[0]) : -1, y = p ? Math.floor(p[1]) : -1;
+          if (x >= 0 && x < 1000 && y >= 0 && y < 1000) {
+            var j = (y * 1000 + x) * 4;
+            d[i] = nen_goc[j]; d[i + 1] = nen_goc[j + 1]; d[i + 2] = nen_goc[j + 2];
+          } else { d[i] = 70; d[i + 1] = 66; d[i + 2] = 60; }       // ngoài mép tấm sa bàn: mặt bàn
+          d[i + 3] = 255;
+        }
+      }
+      c.putImageData(anh, 0, 0);
+    } else {
+      c.fillStyle = '#3b3e44'; c.fillRect(0, 0, KH_RONG, KH_CAO);
+    }
+    nen_cam[h] = { khoa: khoa, o: o };
+    khung_da_ve[h] = -1;
+    return o;
+  }
+
+  function pha(mau, k) {       // làm màu tối đi (k < 1) hoặc sáng lên (k > 1)
+    var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(mau);
+    if (!m) return mau;
+    var f = function (s) { return Math.max(0, Math.min(255, Math.round(parseInt(s, 16) * k))); };
+    return 'rgb(' + f(m[1]) + ',' + f(m[2]) + ',' + f(m[3]) + ')';
+  }
+  function toDaGiac(c, ds, mau) {
+    c.fillStyle = mau; c.beginPath(); c.moveTo(ds[0].u, ds[0].v);
+    for (var i = 1; i < ds.length; i++) c.lineTo(ds[i].u, ds[i].v);
+    c.closePath(); c.fill();
+  }
+  // Vẽ một xe (hộp có nóc, kính, dấu hiệu xe ưu tiên) lên khung hình theo phép chiếu của camera.
+  function veXeQuaOngKinh(c, cam, xe) {
+    var g = MayAnh.chieuXe(cam, xe);
+    if (!g) return;
+    var cs = Math.cos(xe.goc), sn = Math.sin(xe.goc), dx = cam.goc_x - xe.x, dy = cam.goc_y - xe.y;
+    var doc = dx * cs + dy * sn, ngang = -dx * sn + dy * cs;       // camera nằm phía nào của xe
+    var mat = [];
+    if (doc > xe.dai / 2) mat.push([0, 1, 5, 4]); else if (doc < -xe.dai / 2) mat.push([2, 3, 7, 6]);
+    if (ngang > xe.rong / 2) mat.push([1, 2, 6, 5]); else if (ngang < -xe.rong / 2) mat.push([3, 0, 4, 7]);
+    // bóng đổ nhẹ dưới gầm
+    toDaGiac(c, [g[0], g[1], g[2], g[3]], 'rgba(0,0,0,.35)');
+    for (var i = 0; i < mat.length; i++) toDaGiac(c, mat[i].map(function (k) { return g[k]; }), pha(xe.mau, i === 0 ? 0.62 : 0.74));
+    toDaGiac(c, [g[4], g[5], g[6], g[7]], xe.mau);
+    // điểm trên nóc theo toạ độ thân xe (a dọc thân từ -1 đuôi tới 1 mũi, b ngang thân từ -1 tới 1)
+    function noc(a, b) {
+      var lx = a * xe.dai / 2, ly = b * xe.rong / 2;
+      return cam.chieu(xe.x + lx * cs - ly * sn, xe.y + lx * sn + ly * cs, xe.cao);
+    }
+    function mang(a0, a1, b0, b1, mau) { toDaGiac(c, [noc(a0, b0), noc(a1, b0), noc(a1, b1), noc(a0, b1)], mau); }
+    mang(0.15, 0.55, -0.72, 0.72, 'rgba(15,22,30,.82)');          // kính trước
+    mang(-0.72, -0.48, -0.66, 0.66, 'rgba(15,22,30,.82)');        // kính sau
+    if (xe.loai === 1) mang(-0.8, 0.05, -0.3, 0.3, '#cfd4d9');                    // cứu hỏa: thang nhôm
+    else if (xe.loai === 2) mang(-0.9, 0.05, -0.85, 0.85, '#39472b');             // quân sự: thùng phủ bạt
+    else if (xe.loai === 3) { mang(-0.85, 0.75, -1, -0.72, '#1b5fae'); mang(-0.85, 0.75, 0.72, 1, '#1b5fae'); }   // công an: hai dải xanh
+    else if (xe.loai === 4) { mang(-0.45, 0.0, -0.18, 0.18, '#d5372c'); mang(-0.3, -0.15, -0.55, 0.55, '#d5372c'); }   // cứu thương: chữ thập đỏ
+    if (xe.loai) { mang(0.02, 0.14, -0.5, 0, '#2f7bff'); mang(0.02, 0.14, 0, 0.5, '#ff3b30'); }                  // đèn chớp
+  }
+
+  // Vẽ lại khung hình cảm biến và ảnh đầu vào mô hình của camera h theo khung vừa xử lí xong.
+  function veKhungCamBien(h) {
+    var cm = mp.cam[h], cam = cm.mo_hinh, nen_h = nenQuaOngKinh(h), i;
+    if (!o_khung[h]) {
+      o_khung[h] = document.createElement('canvas'); o_khung[h].width = KH_RONG; o_khung[h].height = KH_CAO;
+      o_dau_vao[h] = document.createElement('canvas');
+    }
+    var c = o_khung[h].getContext('2d');
+    c.drawImage(nen_h, 0, 0);
+    var ds = cm.khung && cm.khung.xe ? cm.khung.xe.slice() : [];
+    ds.sort(function (a, b) {          // xe xa camera vẽ trước
+      return Math.hypot(b.x - cam.goc_x, b.y - cam.goc_y) - Math.hypot(a.x - cam.goc_x, a.y - cam.goc_y);
+    });
+    for (i = 0; i < ds.length; i++) veXeQuaOngKinh(c, cam, ds[i]);
+    // ảnh đầu vào mô hình: cắt ROI rồi co về N × N
+    var N = cai.camera.dau_vao, dv = o_dau_vao[h];
+    if (dv.width !== N) { dv.width = N; dv.height = N; }
+    var cd = dv.getContext('2d');
+    cd.imageSmoothingEnabled = true;
+    cd.drawImage(o_khung[h], cam.roi.x, cam.roi.y, cam.roi.w, cam.roi.h, 0, 0, N, N);
+    khung_da_ve[h] = cm.so_khung;
+  }
+
+  function veCameraThat(h) {
+    var o = o_cam[h], c = c_cam[h], cm = mp.cam[h], cam = cm.mo_hinh, ts = cai.camera, i;
+    var nen_h = nenQuaOngKinh(h);
+    if (khung_da_ve[h] !== cm.so_khung || !o_khung[h]) veKhungCamBien(h);
+    var k = o.width / KH_RONG, to = o.width / 230, kh = cm.khung, roi = cam.roi;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = '#1d2024'; c.fillRect(0, 0, o.width, o.height);
+    c.setTransform(k, 0, 0, k, 0, 0);
+    c.imageSmoothingEnabled = true;
+    c.drawImage(o_khung[h] || nen_h, 0, 0);
+    // hai tứ giác làn
+    function tuGiac(q, mau_to, mau_vien) {
+      c.beginPath(); c.moveTo(q[0].x, q[0].y);
+      for (var j = 1; j < 4; j++) c.lineTo(q[j].x, q[j].y);
+      c.closePath(); c.fillStyle = mau_to; c.fill(); c.strokeStyle = mau_vien; c.lineWidth = 1.2; c.stroke();
+    }
+    c.save();
+    c.beginPath(); c.rect(0, 0, KH_RONG, KH_CAO); c.clip();
+    tuGiac(cam.lan_ngoai, 'rgba(64,196,255,.13)', 'rgba(64,196,255,.9)');
+    tuGiac(cam.lan_trong, 'rgba(255,120,220,.13)', 'rgba(255,120,220,.9)');
+    // ROI và lưới ô của mô hình
+    var luoi = Math.floor(ts.dau_vao / ts.o), ow = roi.w / luoi, oh = roi.h / luoi;
+    c.strokeStyle = 'rgba(255,255,255,.16)'; c.lineWidth = 0.6;
+    c.beginPath();
+    for (i = 1; i < luoi; i++) {
+      c.moveTo(roi.x + i * ow, roi.y); c.lineTo(roi.x + i * ow, roi.y + roi.h);
+      c.moveTo(roi.x, roi.y + i * oh); c.lineTo(roi.x + roi.w, roi.y + i * oh);
+    }
+    c.stroke();
+    c.setLineDash([6, 4]); c.strokeStyle = '#ffffff'; c.lineWidth = 1.4;
+    c.strokeRect(roi.x + 0.7, roi.y + 0.7, roi.w - 1.4, roi.h - 1.4);
+    c.setLineDash([]);
+    if (kh) {
+      for (i = 0; i < kh.o.length; i++) {                          // ô sáng
+        c.fillStyle = 'rgba(255,228,92,.28)';
+        c.fillRect(roi.x + kh.o[i].cx * ow, roi.y + kh.o[i].cy * oh, ow, oh);
+      }
+      for (i = 0; i < kh.vat.length; i++) {                        // tâm từng vật mô hình trả về
+        var vt = kh.vat[i], mau = MAU_LOAI[vt.loai] || MAU_LOAI[0];
+        c.strokeStyle = '#000'; c.lineWidth = 3; c.beginPath(); c.arc(vt.x, vt.y, 5, 0, 6.3); c.stroke();
+        c.strokeStyle = mau; c.lineWidth = 1.8; c.beginPath(); c.arc(vt.x, vt.y, 5, 0, 6.3); c.stroke();
+        c.fillStyle = mau; c.beginPath(); c.arc(vt.x, vt.y, 1.6, 0, 6.3); c.fill();
+        if (vt.loai) {
+          c.font = '600 9px ui-monospace, Consolas, monospace'; c.textBaseline = 'bottom';
+          var ten_lop = TEN_LOP[vt.loai], rc = c.measureText(ten_lop).width + 6;
+          c.fillStyle = 'rgba(0,0,0,.75)'; c.fillRect(vt.x - rc / 2, vt.y - 19, rc, 11);
+          c.fillStyle = mau; c.fillText(ten_lop, vt.x - rc / 2 + 3, vt.y - 9);
+        }
+      }
+    }
+    c.restore();
+    // dải dưới: ảnh đầu vào mô hình và các con số của khung này
+    var y0 = KH_CAO + 6, canh = DAI_CAO - 12;
+    c.imageSmoothingEnabled = false;
+    if (o_dau_vao[h]) c.drawImage(o_dau_vao[h], 6, y0, canh, canh);
+    c.imageSmoothingEnabled = true;
+    c.strokeStyle = 'rgba(255,255,255,.14)'; c.lineWidth = 0.5; c.beginPath();
+    for (i = 1; i < luoi; i++) {
+      c.moveTo(6 + i * canh / luoi, y0); c.lineTo(6 + i * canh / luoi, y0 + canh);
+      c.moveTo(6, y0 + i * canh / luoi); c.lineTo(6 + canh, y0 + i * canh / luoi);
+    }
+    c.stroke();
+    c.strokeStyle = '#8b939b'; c.lineWidth = 1; c.strokeRect(6, y0, canh, canh);
+    if (kh) {
+      for (i = 0; i < kh.vat.length; i++) {
+        var kb = kh.vat[i].khoi;
+        c.fillStyle = MAU_LOAI[kh.vat[i].loai] || MAU_LOAI[0];
+        c.beginPath(); c.arc(6 + (kb.x + kb.w / 2) * canh / luoi, y0 + (kb.y + kb.h / 2) * canh / luoi, 2.6, 0, 6.3); c.fill();
+      }
+    }
+    var x_chu = 6 + canh + 9, dong = 0;
+    function chu(mau_chu, noi_dung) {
+      c.fillStyle = mau_chu; c.fillText(noi_dung, x_chu, y0 + dong * 13.2); dong++;
+    }
+    c.font = '10px ui-monospace, Consolas, monospace'; c.textBaseline = 'top';
+    chu('#b9c0c7', 'ROI ' + roi.w + '×' + roi.h + ' → ' + ts.dau_vao + '×' + ts.dau_vao + ', lưới ' + luoi + '×' + luoi);
+    if (kh) {
+      chu('#e9edf0', 'khung ' + cm.so_khung + ', chụp ' + soVn((mp.t - kh.t) / 1000, 1) + ' s trước');
+      chu('#ffe45c', 'mô hình thấy   s=' + kh.tho.s + ' l=' + kh.tho.l + (kh.tho.ut ? ' ut=' + kh.tho.ut : ''));
+      chu(kh.tho.s === kh.that.s && kh.tho.l === kh.that.l ? '#9be36b' : '#ff8a80', 'thật lúc chụp  s=' + kh.that.s + ' l=' + kh.that.l);
+      chu('#b9c0c7', ts.so_khung_loc > 1 ? 'lọc ' + ts.so_khung_loc + ' khung → s=' + cm.kq.s + ' l=' + cm.kq.l : 'không lọc');
+    } else chu('#e9edf0', 'đang chờ khung đầu tiên…');
+    c.font = '7.2px ui-monospace, Consolas, monospace';
+    c.fillStyle = '#e9edf0'; c.fillText(mp.jsonCamera(h), x_chu, y0 + canh - 9);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    veDauCamera(c, o, h, to);
   }
 
   // Sơ đồ 8 nhóm tín hiệu: mỗi hướng một mũi tên thẳng và một mũi tên rẽ trái.
@@ -537,6 +809,10 @@
     for (i = 0; i < mp.xe.length; i++) if (!mp.xe[i].da_qua) tren++;
     $('dang_cho').textContent = 'Chưa qua vạch dừng: ' + tren + ' xe trên sa bàn, ' + ngoai + ' xe chờ ngoài sa bàn. Đã cắt xanh sớm ' + tt.so_cat_som + ' lần.';
     var n_ut = mp.thong_ke[0].uu_tien + mp.thong_ke[1].uu_tien, t_ut = mp.thong_ke[0].tong_uu_tien + mp.thong_ke[1].tong_uu_tien;
+    var tkc = mp.thongKeCamera();
+    $('cam_thong_ke').textContent = cai.camera.kieu && tkc.khung ?
+      'Từ lúc dựng camera: ' + soVn(tkc.tho_dung / tkc.khung * 100) + ' % số khung đếm đúng cả hai làn lúc chụp; ' +
+        soVn(tkc.loc_dung / tkc.khung * 100) + ' % số lần kết quả gửi đi còn đúng với số xe ngay lúc đó (đã tính trễ).' : '';
     $('uu_tien_tk').textContent = n_ut ? 'Xe ưu tiên: ' + n_ut + ' xe, từ lúc tới đến lúc qua vạch dừng trung bình ' + soVn(t_ut / n_ut / 1000, 1) + ' s.' : '';
     capNhatTheHoc();
 
@@ -633,9 +909,9 @@
     var ung_dung = $('ung_dung'), san = $('san'), dien_thoai = window.innerWidth <= 900, canh, i;
     // ô camera: cao khoảng 1/5 màn hình
     var o_dau = o_cam[1].parentNode;
-    var cao_cam = dien_thoai ? 1e9 : Math.max(110, Math.min(240, window.innerHeight * 0.22));
-    var rong_cam = Math.floor(Math.min(o_dau.clientWidth, cao_cam * 4 / 3));
-    for (i = 1; i <= 4; i++) datCo(o_cam[i], rong_cam, Math.round(rong_cam * 3 / 4));
+    var cao_cam = dien_thoai ? 1e9 : Math.max(150, Math.min(344, window.innerHeight * 0.30));
+    var rong_cam = Math.floor(Math.min(o_dau.clientWidth, cao_cam / TI_LE_CAM));
+    for (i = 1; i <= 4; i++) datCo(o_cam[i], rong_cam, Math.round(rong_cam * TI_LE_CAM));
     if (dien_thoai) {
       ung_dung.classList.add('hep_san');
       canh = san.clientWidth;
@@ -678,12 +954,14 @@
     for (var h = 1; h <= 4; h++) {
       var khoi = document.createElement('div');
       khoi.className = 'camera';
-      khoi.innerHTML = '<canvas id="cam_' + h + '" width="320" height="240" aria-label="Camera hướng ' + h + '"></canvas>';
+      khoi.innerHTML = '<canvas id="cam_' + h + '" width="320" height="344" aria-label="Camera hướng ' + h + '"></canvas>';
       day.appendChild(khoi);
       o_cam[h] = khoi.querySelector('canvas');
       c_cam[h] = o_cam[h].getContext('2d');
     }
     docLai();
+    mp.luu_khung = true;        // giữ vị trí xe của từng khung camera để vẽ lại
+    mp.datCamera();
     dungBang();
     dongBoNut();
     for (var i = 0; i < 45000 / NHIP; i++) mp.buoc(NHIP);   // chạy trước 45 giây để mở trang là thấy xe
