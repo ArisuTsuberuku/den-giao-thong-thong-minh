@@ -1,4 +1,4 @@
-// camera.ino — Camera ESP32-S3-CAM của sa bàn đèn giao thông thông minh.
+// camera.ino — Camera ESP32-CAM (AI-Thinker; hoặc ESP32-S3-CAM, xem LOAI_BOARD) của sa bàn đèn giao thông thông minh.
 // Một firmware cho cả 4 camera; chọn CAM_ID và CHE_DO trong cau_hinh.h:
 //   CHE_DO_THU_ANH  xem ảnh, chỉnh ROI và 2 tứ giác làn, lưu ảnh huấn luyện
 //   CHE_DO_DEM      đếm xe từng làn bằng mô hình Edge Impulse rồi gửi ESP-NOW về board trung tâm
@@ -23,7 +23,7 @@ void setup() {
   Serial.begin(TOC_DO_SERIAL);
   delay(300);
   Serial.printf("\n=== CAM %d - chế độ THU ẢNH ===\n", CAM_ID);
-  if (!psramFound()) Serial.println("CHƯA BẬT PSRAM: vào Tools > PSRAM chọn \"OPI PSRAM\" rồi nạp lại.");
+  if (!psramFound()) Serial.println(LOI_PSRAM);
   if (!mayAnhKhoiTao()) {
     Serial.println("KHÔNG khởi tạo được camera. Kiểm tra cáp camera và các chân trong cau_hinh.h.");
     while (true) delay(1000);
@@ -52,7 +52,7 @@ void setup() {
   Serial.begin(TOC_DO_SERIAL);
   delay(300);
   Serial.printf("\n=== CAM %d - chế độ ĐẾM, mô hình %d x %d ===\n", CAM_ID, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
-  if (!psramFound()) Serial.println("CHƯA BẬT PSRAM: vào Tools > PSRAM chọn \"OPI PSRAM\" rồi nạp lại.");
+  if (!psramFound()) Serial.println(LOI_PSRAM);
   if (!mayAnhKhoiTao() || !nhanDienKhoiTao()) {
     Serial.println("KHÔNG khởi tạo được camera hoặc thiếu bộ nhớ.");
     while (true) delay(1000);

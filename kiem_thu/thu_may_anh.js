@@ -1,4 +1,4 @@
-// thu_may_anh.js — Kiểm tra mô hình camera ESP32-S3-CAM của mô phỏng (web/may_anh.js).
+// thu_may_anh.js — Kiểm tra mô hình camera ESP32-CAM của mô phỏng (web/may_anh.js).
 //   node kiem_thu/thu_may_anh.js
 // Kiểm phần hình học và phần gộp ô (những thứ tính được chắc chắn), và kiểm rằng cấu hình ban đầu
 // trong firmware/camera/cau_hinh.h đúng là cấu hình mà mô hình này tính ra.

@@ -100,7 +100,7 @@
       function () { return ts.hoc_nguong; }, function (v) { ts.hoc_nguong = v; }, function (v) { return soVn(v) + ' %'; }));
 
     // camera
-    [[0, 'Lí tưởng'], [1, 'ESP32-S3-CAM']].forEach(function (k) {
+    [[0, 'Lí tưởng'], [1, 'ESP32-CAM']].forEach(function (k) {
       var id = 'cam_kieu_' + k[0];
       $('chon_cam_kieu').insertAdjacentHTML('beforeend', '<input type="radio" name="cam_kieu" id="' + id + '"><label for="' + id + '">' + k[1] + '</label>');
       $(id).addEventListener('change', function () { cai.camera.kieu = k[0]; doiCamera('Đổi camera sang kiểu "' + k[1] + '".'); });
@@ -526,7 +526,7 @@
     c.fillText(mp.jsonCamera(h), 6 * to, o.height - 12 * to);
   }
 
-  // ---------- Camera kiểu ESP32-S3-CAM ----------
+  // ---------- Camera kiểu ESP32-CAM ----------
   // Nền sa bàn nhìn qua ống kính: với từng điểm ảnh, tìm điểm trên mặt sa bàn mà tia nhìn đi tới rồi lấy màu ở đó.
   function nenQuaOngKinh(h) {
     var cam = mp.cam[h].mo_hinh, ts = cai.camera;

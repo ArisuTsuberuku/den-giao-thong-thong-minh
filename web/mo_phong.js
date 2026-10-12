@@ -1,7 +1,7 @@
 // mo_phong.js — Mô phỏng xe chạy trên sa bàn Lần 08 (đơn vị mm, tấm 1000 × 1000).
 // Không đụng tới trang web nên chạy được cả bằng Node (xem kiem_thu/thu_mo_phong.js).
 // Đèn do đúng bộ quyet_dinh.js + dieu_khien.js điều khiển, giống board trung tâm.
-// Camera có hai kiểu (cai.camera.kieu): kiểu ESP32-S3-CAM chạy mô hình trong may_anh.js (góc nhìn
+// Camera có hai kiểu (cai.camera.kieu): kiểu ESP32-CAM chạy mô hình trong may_anh.js (góc nhìn
 // phối cảnh, cắt ROI, nhận diện theo lưới ô, 1 khung mỗi giây, lọc nhiễu); kiểu lí tưởng đếm đúng
 // tuyệt đối số xe có tâm nằm trong vùng chờ, 4 lần mỗi giây. Cả hai gửi {id, seq, s, l, emg, ut}.
 (function (goc, tao) {
@@ -296,7 +296,7 @@
     return ds;
   };
 
-  // Camera của 4 hướng. Kiểu ESP32-S3-CAM làm đúng như vòng loop() của firmware/camera/camera.ino:
+  // Camera của 4 hướng. Kiểu ESP32-CAM làm đúng như vòng loop() của firmware/camera/camera.ino:
   // chụp → (một chu kì xử lí sau) có kết quả → lọc → gửi ngay nếu đã quá gui_ms kể từ lần gửi trước.
   // Vì loop() đứng chờ mô hình chạy xong nên ở 1 khung/giây mỗi giây chỉ có 1 gói; trước khung đầu tiên thì chưa có gói nào.
   MoPhong.prototype.chayCamera = function () {
@@ -548,7 +548,7 @@
     }
   };
 
-  // Độ chính xác của camera kiểu ESP32-S3-CAM, gộp cả 4 hướng.
+  // Độ chính xác của camera kiểu ESP32-CAM, gộp cả 4 hướng.
   MoPhong.prototype.thongKeCamera = function () {
     var o = { khung: 0, tho_dung: 0, loc_dung: 0, lech: 0 };
     for (var h = 1; h <= 4; h++) for (var k in o) o[k] += this.cam[h].tk[k];

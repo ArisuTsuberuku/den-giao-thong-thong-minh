@@ -1,6 +1,7 @@
 // cau_hinh.h — Mọi thứ cần chỉnh của camera nằm ở đây. Một firmware dùng chung cho 4 board,
 // mỗi board chỉ khác CAM_ID và các số ROI, tứ giác làn của nó.
-// Board: ESP32-S3-CAM (cảm biến OV2640, có đế nạp). Cách chọn trong Arduino IDE: xem README.md.
+// Board: ESP32-CAM loại AI-Thinker (chip ESP32, cảm biến OV2640, đế nạp ESP32-CAM-MB). Vẫn dùng được
+// với ESP32-S3-CAM nếu đổi LOAI_BOARD ở mục 4. Cách chọn trong Arduino IDE: xem README.md.
 #pragma once
 #include <Arduino.h>
 #include "lan_duong.h"
@@ -27,7 +28,33 @@
 #define TOC_DO_SERIAL 115200
 #define MAT_KHAU_WIFI "12345678" // chế độ thu ảnh: camera phát WiFi tên "CAM<số>-SaBan", vào http://192.168.4.1
 
-// ---------- 4) Chân camera của board ESP32-S3-CAM (trùng với kiểu ESP32-S3-EYE) ----------
+// ---------- 4) Loại board và chân camera ----------
+#define BOARD_ESP32_CAM 1        // ESP32-CAM AI-Thinker (chip ESP32): board của dự án
+#define BOARD_ESP32S3_CAM 2      // ESP32-S3-CAM (chân trùng kiểu ESP32-S3-EYE): chạy mô hình nhanh hơn khoảng 6 lần
+#ifndef LOAI_BOARD
+#define LOAI_BOARD BOARD_ESP32_CAM
+#endif
+
+#if LOAI_BOARD == BOARD_ESP32_CAM
+#define CHAN_PWDN 32
+#define CHAN_RESET -1
+#define CHAN_XCLK 0
+#define CHAN_SIOD 26
+#define CHAN_SIOC 27
+#define CHAN_Y9 35
+#define CHAN_Y8 34
+#define CHAN_Y7 39
+#define CHAN_Y6 36
+#define CHAN_Y5 21
+#define CHAN_Y4 19
+#define CHAN_Y3 18
+#define CHAN_Y2 5
+#define CHAN_VSYNC 25
+#define CHAN_HREF 23
+#define CHAN_PCLK 22
+#define CHAN_DEN_FLASH 4         // đèn LED trắng rất sáng trên board: giữ tắt để không hắt sáng lên sa bàn
+#define LOI_PSRAM "KHÔNG THẤY PSRAM: kiểm tra đã chọn Board \"AI Thinker ESP32-CAM\" rồi nạp lại."
+#else
 #define CHAN_XCLK 15
 #define CHAN_SIOD 4
 #define CHAN_SIOC 5
@@ -44,6 +71,9 @@
 #define CHAN_PCLK 13
 #define CHAN_PWDN -1
 #define CHAN_RESET -1
+#define CHAN_DEN_FLASH -1
+#define LOI_PSRAM "CHƯA BẬT PSRAM: vào Tools > PSRAM chọn \"OPI PSRAM\" rồi nạp lại."
+#endif
 #define TAN_SO_XCLK 20000000
 #define LAT_DOC 0                // 1 nếu ảnh bị lộn ngược
 #define LAT_NGANG 0              // 1 nếu ảnh bị ngược trái phải

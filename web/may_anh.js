@@ -1,4 +1,4 @@
-// may_anh.js — Mô hình camera ESP32-S3-CAM (cảm biến OV2640) gắn trên khung đèn, dùng cho mô phỏng.
+// may_anh.js — Mô hình camera ESP32-CAM (cảm biến OV2640) gắn trên khung đèn, dùng cho mô phỏng.
 // Làm đúng các bước mà board thật làm, theo đúng thứ tự:
 //   1. Chụp một khung 320 × 240: phép chiếu phối cảnh từ vị trí ống kính trên khung đèn.
 //   2. Cắt ROI (hình chữ nhật chứa 2 làn chờ) rồi co về ảnh vuông đưa vào mô hình (96 × 96, kiểu Squash).
@@ -21,7 +21,7 @@
 
   function thamSoMacDinh() {
     return {
-      kieu: 1,             // 0: camera lí tưởng (đếm đúng tuyệt đối, 4 lần mỗi giây); 1: ESP32-S3-CAM
+      kieu: 1,             // 0: camera lí tưởng (đếm đúng tuyệt đối, 4 lần mỗi giây); 1: ESP32-CAM
       rong: 320, cao: 240, // khung QVGA
       goc_cheo: 66,        // góc nhìn theo đường chéo của ống kính thường đi kèm OV2640 (độ)
       cao_mm: 285,         // độ cao ống kính so với mặt sa bàn (khung đèn Lần 08)

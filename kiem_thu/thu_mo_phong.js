@@ -1,9 +1,9 @@
 // thu_mo_phong.js — Chạy mô phỏng không vẽ để kiểm tra:
 //  - không có hai xe đè lên nhau, không xe nào vượt đèn đỏ, không xe nào đứng yên quá 300 giây liền,
-//    xe ưu tiên luôn qua được; thử ở cả ba cỡ xe, với camera kiểu ESP32-S3-CAM (mặc định) và camera lí tưởng;
+//    xe ưu tiên luôn qua được; thử ở cả ba cỡ xe, với camera kiểu ESP32-CAM (mặc định) và camera lí tưởng;
 //  - trễ phản ứng của người lái; bộ tự học chọn đúng kiểu chia pha;
 //  - in bảng so sánh chế độ cố định với các kiểu chia pha của chế độ thích ứng.
-// Camera: không ghi gì là kiểu ESP32-S3-CAM (1 khung/giây, lọc 3 khung); LT là camera lí tưởng.
+// Camera: không ghi gì là kiểu ESP32-CAM (1 khung/giây, lọc 3 khung); LT là camera lí tưởng.
 // Chạy: node kiem_thu/thu_mo_phong.js   (mất khoảng 20 phút)
 'use strict';
 const QD = require('../web/quyet_dinh.js');
@@ -124,7 +124,7 @@ function xaHang(tre) {
 }
 
 // ---------- 3) Xe ưu tiên: qua rồi là chuyển vàng ngay ----------
-// Camera lí tưởng: đèn chuyển vàng chừng 1,5 s sau khi xe qua vạch. Camera kiểu ESP32-S3-CAM (1 khung/giây,
+// Camera lí tưởng: đèn chuyển vàng chừng 1,5 s sau khi xe qua vạch. Camera kiểu ESP32-CAM (1 khung/giây,
 // lọc 3 khung) biết muộn hơn vài giây, cả lúc xe tới lẫn lúc xe đã qua.
 function xeUuTien(cam) {
   const ts = QD.thamSoMacDinh(); ts.kieu_pha = QD.KIEU_RIENG;
@@ -146,7 +146,7 @@ function xeUuTien(cam) {
 }
 {
   console.log('\nXe cứu hỏa thả vào Hướng 2 lúc 120 s:');
-  for (const [ten, cam, han] of [['camera lí tưởng', LT, 1600], ['camera ESP32-S3-CAM', {}, 6000]]) {
+  for (const [ten, cam, han] of [['camera lí tưởng', LT, 1600], ['camera ESP32-CAM', {}, 6000]]) {
     const r = xeUuTien(cam);
     console.log('  ' + ten.padEnd(22) + 'trung tâm biết lúc ' + (r.t_thay / 1000).toFixed(1) + ' s, xe qua vạch dừng lúc ' + (r.t_qua / 1000).toFixed(1) +
       ' s, hết ưu tiên lúc ' + (r.t_het / 1000).toFixed(1) + ' s (' + ((r.t_het - r.t_qua) / 1000).toFixed(1) + ' s sau khi xe qua), đèn mở riêng tổng cộng ' + (r.t_xanh_uu_tien / 1000).toFixed(1) + ' s');
@@ -168,7 +168,7 @@ function tiLeThangTruoc(p_trai, hat, cam) {
   }
   return { doc: tt[0] / n, ngang: tt[1] / n, thu, cho: mp.tongHop().cho_tb };
 }
-for (const [ten_cam, cam] of [['camera ESP32-S3-CAM', {}], ['camera lí tưởng', LT]]) {
+for (const [ten_cam, cam] of [['camera ESP32-CAM', {}], ['camera lí tưởng', LT]]) {
   console.log('\nTự học, 6 xe/phút mỗi hướng, ' + ten_cam + ': phần thời gian giữ kiểu "thẳng trước" trong 45 phút cuối');
   const ca = [['không ai rẽ trái', [0, 0]], ['25 % rẽ trái', [25, 25]], ['dọc 0 %, ngang 30 %', [0, 30]]];
   const kq = ca.map(([ten, p]) => {
@@ -196,10 +196,10 @@ function phutToiKhiDoi(p_truoc, p_sau, kieu_dich, hat, cam) {
   }
   return kq.map(x => x < 0 ? 45 : x);
 }
-// Với camera ESP32-S3-CAM, chiều "không ai rẽ trái → 25 % rẽ trái" chỉ đòi một nửa số lần đổi trong 20 phút,
+// Với camera ESP32-CAM, chiều "không ai rẽ trái → 25 % rẽ trái" chỉ đòi một nửa số lần đổi trong 20 phút,
 // không đặt mức chậm nhất: trong lúc thử, có lần điểm % của "thẳng trước" lơ lửng 95–100 % nên một trục giữ
 // "thẳng trước" quá 40 phút (giới hạn đã ghi trong README; hạ ngưỡng trả về thì lại làm hỏng các dòng 5 % rẽ trái).
-for (const [ten_cam, cam, han_cham] of [['camera ESP32-S3-CAM', {}, Infinity], ['camera lí tưởng', LT, 30]]) {
+for (const [ten_cam, cam, han_cham] of [['camera ESP32-CAM', {}, Infinity], ['camera lí tưởng', LT, 30]]) {
   console.log('\nĐổi dòng xe ở phút 30 (6 xe/phút mỗi hướng), ' + ten_cam + ': số phút tới khi từng trục đổi kiểu, 3 lần chạy');
   for (const [ten, p1, p2, dich, han_giua, han] of [['25 % rẽ trái → không ai rẽ trái', 25, 0, QD.KIEU_THANG_TRUOC, 15, 40], ['không ai rẽ trái → 25 % rẽ trái', 0, 25, QD.KIEU_RIENG, 20, han_cham]]) {
     const o = [];
@@ -211,7 +211,7 @@ for (const [ten_cam, cam, han_cham] of [['camera ESP32-S3-CAM', {}, Infinity], [
 }
 
 // ---------- 5) Bảng so sánh (60 phút mô phỏng, 3 hạt giống) ----------
-// Bốn cột giữa và cột "Tự học" dùng camera kiểu ESP32-S3-CAM; cột cuối là tự học với camera lí tưởng.
+// Bốn cột giữa và cột "Tự học" dùng camera kiểu ESP32-CAM; cột cuối là tự học với camera lí tưởng.
 console.log('\nSo sánh thời gian chờ trung bình (giây), 60 phút mô phỏng, trung bình 3 lần chạy, cỡ xe 75 %:');
 console.log('Kiểu dòng xe'.padEnd(24) + 'Cố định'.padStart(9) + 'Riêng'.padStart(9) + 'Thẳng trước'.padStart(13) + 'Đối xứng'.padStart(10) + 'Tự học'.padStart(9) +
   '   so với cố định' + '   Tự học, camera lí tưởng');

@@ -1,12 +1,12 @@
 # Đèn giao thông thông minh — NCKHKT 2026
 
-Code cho mô hình ngã tư trên sa bàn Lần 08: 4 camera ESP32-S3-CAM đếm xe theo làn, 1 board ESP32-S3 N16R8 quyết định kế hoạch đèn và điều khiển 24 bóng đèn, cùng một trang web mô phỏng chạy trên máy tính.
+Code cho mô hình ngã tư trên sa bàn Lần 08: 4 camera ESP32-CAM (loại AI-Thinker, chip ESP32) đếm xe theo làn, 1 board ESP32-S3 N16R8 quyết định kế hoạch đèn và điều khiển 24 bóng đèn, cùng một trang web mô phỏng chạy trên máy tính.
 
 | Thư mục | Nội dung |
 |---|---|
 | `web/` | Web mô phỏng: sa bàn nhìn từ trên xuống, bảng thông số, 4 ô camera |
 | `firmware/trung_tam/` | Code board trung tâm ESP32-S3 N16R8 |
-| `firmware/camera/` | Code camera ESP32-S3-CAM (một code cho cả 4 board) |
+| `firmware/camera/` | Code camera ESP32-CAM (một code cho cả 4 board) |
 | `kiem_thu/` | Các bài kiểm tra chạy trên máy tính, không cần phần cứng |
 | `cong_cu/` | Gộp web thành một tệp; tạo nền sa bàn từ tệp decal |
 | `TIEN_DO_DU_AN.md` | Tiến độ và các quyết định thiết kế của dự án |
@@ -17,13 +17,13 @@ Code cho mô hình ngã tư trên sa bàn Lần 08: 4 camera ESP32-S3-CAM đếm
 
 - Bộ quyết định đèn cho đúng kế hoạch ở các ca của mục 6 trong `TIEN_DO_DU_AN.md` và ở từng kiểu chia pha.
 - Bản C++ trong firmware và bản JavaScript trong web cho kết quả giống nhau trên 781 000 dòng trạng thái sinh ngẫu nhiên, kể cả lúc bộ đếm thời gian 32 bit quay vòng, lúc có xe ưu tiên đủ 4 loại và lúc bộ tự học đang chạy (199 lượt chạy thử, 3 lần đổi kiểu). Phần gán làn và lọc nhiễu của firmware camera cũng được so với bản JavaScript dùng trong mô phỏng (21 000 lệnh).
-- Mô hình camera ESP32-S3-CAM của mô phỏng (`thu_may_anh.js`): phép chiếu phối cảnh lần ngược lại đúng điểm cũ, cấu hình ROI và 2 tứ giác ban đầu trong `firmware/camera/cau_hinh.h` đúng là cấu hình tính ra từ hình học khung đèn, cách gộp ô giống thư viện Edge Impulse, nhịp 1 khung mỗi giây và độ trễ đúng như vòng `loop()` của firmware.
+- Mô hình camera ESP32-CAM của mô phỏng (`thu_may_anh.js`): phép chiếu phối cảnh lần ngược lại đúng điểm cũ, cấu hình ROI và 2 tứ giác ban đầu trong `firmware/camera/cau_hinh.h` đúng là cấu hình tính ra từ hình học khung đèn, cách gộp ô giống thư viện Edge Impulse, nhịp 1 khung mỗi giây và độ trễ đúng như vòng `loop()` của firmware.
 - Trong 400 lần chạy ngẫu nhiên 15 phút (hơn 800 lần cắt xanh sớm, hơn 6 000 lần ưu tiên): không lần nào hai nhóm xung đột cùng sáng, không nhóm nào từ xanh sang đỏ mà thiếu vàng, đỏ toàn phần luôn đủ.
 - Bộ tự học, thử trên một ngã tư thu nhỏ trong `thu_quyet_dinh.js`: không có xe rẽ trái thì cả hai trục sang "thẳng trước" sau 3 phút; một nửa xe làn trong rẽ trái thì giữ "riêng"; đổi dòng xe giữa chừng thì đổi kiểu theo sau 7–9 phút.
-- Mô phỏng 30 phút với 6 kiểu dòng xe, 3 cỡ xe và cả hai loại camera (lí tưởng, ESP32-S3-CAM): không có hai xe đè lên nhau, không xe nào vượt đèn đỏ, không xe nào đứng yên quá 5 phút, cả 4 loại xe ưu tiên đều qua được. Xe ưu tiên qua vạch dừng thì đèn chuyển vàng sau 1,5 s với camera lí tưởng, sau 3–4 s với camera ESP32-S3-CAM.
-- Cả hai firmware biên dịch được cho ESP32-S3 với lõi `esp32` 2.0.9 và 3.3.12. Chế độ đếm của camera mới biên dịch với thư viện Edge Impulse giả (`kiem_thu/gia_ei`).
+- Mô phỏng 30 phút với 6 kiểu dòng xe, 3 cỡ xe và cả hai loại camera (lí tưởng, ESP32-CAM): không có hai xe đè lên nhau, không xe nào vượt đèn đỏ, không xe nào đứng yên quá 5 phút, cả 4 loại xe ưu tiên đều qua được. Xe ưu tiên qua vạch dừng thì đèn chuyển vàng sau 1,5 s với camera lí tưởng, sau 3–4 s với camera ESP32-CAM.
+- Cả hai firmware biên dịch được với lõi `esp32` 2.0.9 và 3.3.12: board trung tâm cho ESP32-S3, firmware camera cho cả ESP32-CAM (AI-Thinker) lẫn ESP32-S3-CAM. Chế độ đếm của camera mới biên dịch với thư viện Edge Impulse giả (`kiem_thu/gia_ei`).
 
-Chưa kiểm tra, vì cần phần cứng thật: nạp vào board, độ sáng đèn ở 3,3 V, ảnh từ OV2640, đường truyền ESP-NOW, mô hình nhận diện (kể cả việc phân biệt 4 loại xe ưu tiên) và tốc độ chạy mô hình trên ESP32-S3. Camera trong mô phỏng tính đúng hình học và nhịp xử lí, còn tỉ lệ nhận đúng của mô hình là giả định. Chế độ tự học mới chạy trong mô phỏng. Danh sách việc cần thử nằm ở cuối mỗi phần dưới đây.
+Chưa kiểm tra, vì cần phần cứng thật: nạp vào board, độ sáng đèn ở 3,3 V, ảnh từ OV2640, đường truyền ESP-NOW, mô hình nhận diện (kể cả việc phân biệt 4 loại xe ưu tiên) và tốc độ chạy mô hình trên ESP32-CAM. Camera trong mô phỏng tính đúng hình học và nhịp xử lí, còn tỉ lệ nhận đúng của mô hình là giả định. Chế độ tự học mới chạy trong mô phỏng. Danh sách việc cần thử nằm ở cuối mỗi phần dưới đây.
 
 ## 1. Web mô phỏng
 
@@ -31,7 +31,7 @@ Mở `web/index.html` bằng trình duyệt, không cần mạng và không cầ
 
 - **Bên trái:** chạy, tạm dừng, tốc độ ×1 đến ×16; chế độ cố định hoặc thích ứng; kiểu chia pha (tự học, riêng, thẳng trước, đối xứng); loại camera và thông số camera; các thông số đèn; cỡ xe; lưu lượng và tỉ lệ rẽ trái của từng hướng; 4 nút thả xe ưu tiên cho mỗi hướng; trễ phản ứng của người lái; nút so sánh các phương án.
 - **Giữa:** sa bàn vẽ từ đúng tệp decal Lần 08. Hai cột hai bên cho biết tổ hợp đang xanh, thời gian còn lại, kế hoạch của lượt đang chạy và lượt sau, số xe đã qua, thời gian chờ, và bộ tự học đang giữ kiểu chia pha nào cho từng trục.
-- **Phía dưới:** 4 ô camera. Với camera ESP32-S3-CAM, mỗi ô là khung hình 320 × 240 nhìn từ ống kính trên khung đèn (khung chụp gần nhất, chậm hơn sa bàn tới vài giây); khung đứt là ROI, vùng xanh dương là làn ngoài (`s`), vùng hồng là làn trong (`l`), lưới mảnh là các ô của mô hình, vòng tròn là chỗ mô hình thấy xe. Dải dưới là ảnh 96 × 96 đưa vào mô hình, số xe mô hình thấy, số xe thật lúc chụp, kết quả sau lọc và bản tin JSON gửi về trung tâm.
+- **Phía dưới:** 4 ô camera. Với camera ESP32-CAM, mỗi ô là khung hình 320 × 240 nhìn từ ống kính trên khung đèn (khung chụp gần nhất, chậm hơn sa bàn tới vài giây); khung đứt là ROI, vùng xanh dương là làn ngoài (`s`), vùng hồng là làn trong (`l`), lưới mảnh là các ô của mô hình, vòng tròn là chỗ mô hình thấy xe. Dải dưới là ảnh 96 × 96 đưa vào mô hình, số xe mô hình thấy, số xe thật lúc chụp, kết quả sau lọc và bản tin JSON gửi về trung tâm.
 
 Đèn trong web do đúng hai tệp `quyet_dinh.js` và `dieu_khien.js` điều khiển; hai tệp này là bản JavaScript của `quyet_dinh.h` và `dieu_khien.h` trong firmware. Web hiện là mô phỏng thuần, chưa nối với board.
 
@@ -54,9 +54,9 @@ Lệnh này tạo `Mo_phong_sa_ban.html` ở thư mục gốc.
 - Gặp đèn vàng: xe dừng nếu kịp, không kịp thì đi tiếp. Xe rẽ phải đi làn riêng, nhường xe trên làn mà nó nhập vào.
 - **Xe ưu tiên** có 4 loại: cứu hỏa, quân sự, công an, cứu thương. Camera chỉ thấy xe ưu tiên khi xe đã vào vùng chờ dài 304 mm; xe còn kẹt ở cuối hàng dài phía ngoài thì chưa được mở đèn.
 
-### Camera ESP32-S3-CAM trong mô phỏng
+### Camera ESP32-CAM trong mô phỏng
 
-Mặc định, mỗi hướng dùng một camera mô phỏng theo phần cứng thật (`web/may_anh.js`). Chọn "Lí tưởng" để có camera đếm đúng tuyệt đối 4 lần mỗi giây, dùng làm mốc so sánh. Camera ESP32-S3-CAM trong mô phỏng làm đúng các bước của board thật, theo đúng thứ tự:
+Mặc định, mỗi hướng dùng một camera mô phỏng theo phần cứng thật (`web/may_anh.js`). Chọn "Lí tưởng" để có camera đếm đúng tuyệt đối 4 lần mỗi giây, dùng làm mốc so sánh. Camera ESP32-CAM trong mô phỏng làm đúng các bước của board thật, theo đúng thứ tự:
 
 1. **Chụp** khung 320 × 240. Ống kính thường đi kèm OV2640 nhìn 66° theo đường chéo, tức 55° theo cạnh dài và 43° theo cạnh ngắn (tiêu cự 308 điểm ảnh). Ống kính đặt như khung đèn Lần 08: cao 285 mm, ngay trên vạch chia hai làn, trước vạch dừng 14 mm, trục chúc 26° so với phương thẳng đứng về phía xe đang tới. Ảnh là phép chiếu phối cảnh của từng xe (hộp dài × rộng × cao): xe xa nhỏ hơn xe gần, xe trước che một phần xe sau, xe ở mép bị cắt.
 2. **Cắt ROI** (hình chữ nhật bao 2 làn chờ, nới 8 điểm ảnh) rồi **co** về 96 × 96 kiểu Squash, như impulse Edge Impulse. ROI tính ra là 277 × 136 điểm ảnh, nên theo chiều dọc đường ảnh chỉ còn 35 % độ phân giải, theo chiều ngang đường còn 71 %.
@@ -64,12 +64,12 @@ Mặc định, mỗi hướng dùng một camera mô phỏng theo phần cứng 
 4. **Gán làn** bằng 2 tứ giác rồi **lọc** qua 3 khung gần nhất (trung vị), đúng code `lan_duong.h` của firmware.
 5. **Nhịp:** xử lí 1 khung mỗi giây (chỉnh được 0,5–5). Khung chụp lúc t thì t + 1 s mới có kết quả; 4 camera chụp lệch nhau 1/4 giây. Như vòng `loop()` của firmware, camera gửi ngay sau mỗi khung, nên ở 1 khung/giây chỉ có 1 gói mỗi giây. Một xe vừa vào vùng chờ thì trung tâm biết sau 1–2 s nếu không lọc, 2–3 s nếu lọc 3 khung, 3–4 s nếu lọc 5 khung.
 
-Phần hình học và nhịp xử lí là tính đúng theo thiết kế; tỉ lệ nhận đúng của mô hình là giả định, vì chưa có mô hình huấn luyện thật để đo. Mức 1 khung mỗi giây là mức thận trọng: bài đo FOMO 96 × 96 ảnh xám trên XIAO ESP32-S3 cho 115–143 ms mỗi lần chạy mô hình, chưa kể chụp, cắt và co ảnh.
+Phần hình học và nhịp xử lí là tính đúng theo thiết kế; tỉ lệ nhận đúng của mô hình là giả định, vì chưa có mô hình huấn luyện thật để đo. Mức 1 khung mỗi giây là sát mức chip ESP32 của ESP32-CAM làm được: riêng phần chạy mô hình FOMO 96 × 96 ảnh xám trên ESP-EYE (cùng chip ESP32) đã mất khoảng 862 ms, ảnh màu chậm hơn vài phần trăm, chưa kể chụp, cắt và co ảnh. Trên sa bàn thật có thể chỉ được 0,7–1 khung mỗi giây. Mô phỏng ở cỡ xe 100 %, kiểu riêng: 1; 0,8 và 0,6 khung/giây cho thời gian chờ gần như nhau (dòng xe đều 33,9; 33,5; 34,6 s), xe ưu tiên từ lúc tới tới lúc qua vạch chậm dần 15,3; 16,1; 17,1 s. Dưới 0,5 khung/giây thì trung tâm sẽ coi camera mất tín hiệu (3 s không có gói).
 
 Điều rút ra từ mô phỏng:
 
 - **Phải gắn board sao cho cạnh dài của khung hình nằm dọc theo đường.** Khi đó khung hình thấy trọn bề rộng hai làn từ trước mép làn bao tới cách vạch dừng 7 mm; chiếc xe đứng sát vạch dừng vẫn thấy 89 % thân (cỡ 75 %). Gắn cạnh ngắn dọc đường thì khung hình dừng cách vạch dừng 38 mm, xe sát vạch chỉ còn 15–48 % thân trong ảnh và gần như không được nhận ra, mà đó là chiếc xe quan trọng nhất. Mô phỏng ở cỡ xe 100 %: số khung đếm đúng cả hai làn còn 48 %, so với gần 80 % khi gắn đúng.
-- **Ảnh 96 × 96 hơi thô theo chiều dọc đường.** Hàng xe đứng kín làn ở cỡ 75 % (5 xe) bị đếm thành 4, vì hai xe cuối hàng, xa camera nhất, rơi vào hai ô sát nhau và bị gộp; cỡ 60 % (6 xe) bị đếm thành 5; cỡ 100 % đếm đủ 4. Với ảnh 160 × 160 (lưới 20 × 20) cả ba cỡ đều đếm đủ, và giờ cao điểm chờ ít hơn 3 s (bảng dưới). Mô hình 160 × 160 tính nhiều gấp khoảng (160/96)² ≈ 2,8 lần, ước chừng 0,3–0,4 s mỗi lần trên ESP32-S3, vẫn vừa nhịp 1 khung/giây, nhưng phải đo trên board thật mới biết.
+- **Ảnh 96 × 96 hơi thô theo chiều dọc đường.** Hàng xe đứng kín làn ở cỡ 75 % (5 xe) bị đếm thành 4, vì hai xe cuối hàng, xa camera nhất, rơi vào hai ô sát nhau và bị gộp; cỡ 60 % (6 xe) bị đếm thành 5; cỡ 100 % (xe Hot Wheels thật, 4 xe mỗi làn) đếm đủ. Ảnh 160 × 160 (lưới 20 × 20) đếm đủ ở cả ba cỡ, nhưng tính nhiều gấp khoảng 2,8 lần: trên chip ESP32 là khoảng 2,4 s mỗi khung, quá chậm. Với ESP32-CAM thì dùng 96 × 96; 160 × 160 chỉ đáng thử nếu đổi sang ESP32-S3-CAM (chạy mô hình nhanh hơn khoảng 6 lần).
 - **Lọc 3 khung là hợp.** Không lọc thì mỗi lần mô hình nhìn nhầm lại mở đèn ưu tiên cho một hướng không có xe ưu tiên (129 lần trong 6 giờ mô phỏng), và giờ cao điểm chờ gấp đôi. Lọc 5 khung thì xe ưu tiên phải chờ lâu hơn mà không bớt nhầm được bao nhiêu.
 
 So với camera lí tưởng (kiểu chia pha riêng, 60 phút × 3 lần, cỡ xe 75 %; `% đúng` là phần khung mà số xe mô hình đếm được khớp số xe thật lúc chụp ở cả hai làn):
@@ -99,7 +99,7 @@ Cả 120 xe ưu tiên đều qua được ở mọi cách đặt. Với camera m
 
 ### Kết quả mô phỏng
 
-Thời gian chờ trung bình trước vạch dừng (giây), 60 phút mô phỏng, trung bình 3 lần chạy, thông số mặc định, cỡ xe 75 %, camera ESP32-S3-CAM (lấy từ `node kiem_thu/thu_mo_phong.js`). Bốn cột giữa là chế độ thích ứng với từng kiểu chia pha; cột cuối là tự học với camera lí tưởng để so:
+Thời gian chờ trung bình trước vạch dừng (giây), 60 phút mô phỏng, trung bình 3 lần chạy, thông số mặc định, cỡ xe 75 %, camera ESP32-CAM (lấy từ `node kiem_thu/thu_mo_phong.js`). Bốn cột giữa là chế độ thích ứng với từng kiểu chia pha; cột cuối là tự học với camera lí tưởng để so:
 
 | Kiểu dòng xe | Cố định | Riêng | Thẳng trước | Đối xứng | Tự học | Tự học so với cố định | Tự học, camera lí tưởng |
 |---|---|---|---|---|---|---|---|
@@ -114,7 +114,7 @@ Thời gian chờ trung bình trước vạch dừng (giây), 60 phút mô phỏ
 
 ### Kiểu chia pha nào tốt nhất, khi nào
 
-Khảo sát riêng về kiểu chia pha (120 phút mô phỏng, trung bình 3 lần chạy, `node kiem_thu/khao_sat_kieu_pha.js`). Bảng này dùng camera lí tưởng để so riêng các kiểu chia pha, không lẫn sai số của camera; bảng với camera ESP32-S3-CAM ở ngay dưới. Số xe/phút là của mỗi hướng; thời gian chờ tính bằng giây:
+Khảo sát riêng về kiểu chia pha (120 phút mô phỏng, trung bình 3 lần chạy, `node kiem_thu/khao_sat_kieu_pha.js`). Bảng này dùng camera lí tưởng để so riêng các kiểu chia pha, không lẫn sai số của camera; bảng với camera ESP32-CAM ở ngay dưới. Số xe/phút là của mỗi hướng; thời gian chờ tính bằng giây:
 
 | Dòng xe | Riêng | Thẳng trước | Đối xứng | Tự học | Tự học so với riêng |
 |---|---|---|---|---|---|
@@ -140,7 +140,7 @@ Khảo sát riêng về kiểu chia pha (120 phút mô phỏng, trung bình 3 l�
 - **Tự học** không biết trước tỉ lệ rẽ trái, tự tìm ra kiểu hợp cho từng trục. Trung bình 13 dòng trên, nó chờ ít hơn kiểu riêng 14 % và nhiều hơn kiểu tốt nhất của từng dòng 9 % (cái giá của việc phải thử). Khi hai trục khác nhau (dọc không rẽ trái, ngang rẽ 25 %), nó chọn mỗi trục một kiểu và tốt hơn mọi kiểu dùng chung cho cả hai trục.
 - Chỗ yếu của tự học: khi ngã tư quá tải mà nhiều xe rẽ trái (12 xe/phút, 30 %), mỗi lượt thử "thẳng trước" làm hàng xe dài thêm và lâu tan, nên nó chờ lâu hơn kiểu riêng 17 %. Gặp tình huống này thì chọn tay kiểu riêng.
 
-**Tự học với camera ESP32-S3-CAM** (cỡ xe 75 %, 120 phút × 3 lần; thời gian chờ tính bằng giây):
+**Tự học với camera ESP32-CAM** (cỡ xe 75 %, 120 phút × 3 lần; thời gian chờ tính bằng giây):
 
 | Dòng xe | Riêng | Thẳng trước | Tự học | Tự học so với riêng |
 |---|---|---|---|---|
@@ -157,12 +157,12 @@ Với camera thật, tự học vẫn chọn đúng kiểu ở mọi dòng trên
 
 **Đổi dòng xe giữa chừng** (6 xe/phút mỗi hướng, đổi tỉ lệ rẽ trái ở phút 30, đo số phút tới khi từng trục đổi kiểu; 3 lần chạy, mỗi lần 2 trục):
 
-| Đổi | Camera lí tưởng | Camera ESP32-S3-CAM |
+| Đổi | Camera lí tưởng | Camera ESP32-CAM |
 |---|---|---|
 | 25 % rẽ trái → không ai rẽ trái (phải sang "thẳng trước") | 11, 11, 12, 12, 15, 30 | 2, 7, 11, 12, 14, 21 |
 | Không ai rẽ trái → 25 % rẽ trái (phải về "riêng") | 9, 12, 14, 16, 19, 20 | 8, 13, 13, 18, 22, 26 |
 
-Tức là thường mất 10–20 phút mô phỏng, tương đương vài lượt thử của mỗi trục. Với camera ESP32-S3-CAM, một lần đo trước đó có hai trục giữ "thẳng trước" hơn 40 phút sau khi dòng xe đã sang 25 % rẽ trái: điểm % của "thẳng trước" lơ lửng 95–100 %, chưa tới mức 105 % để trả về. Hạ mức trả về xuống 100 % thì sửa được ca này nhưng làm các dòng 5 % rẽ trái chờ lâu hơn, nên chưa đổi. Bản tự học đầu tiên (đo thời gian chờ theo từng cửa sổ 3 vòng) trong cùng tình huống mất từ 11 phút tới hơn 90 phút, có khi không đổi.
+Tức là thường mất 10–20 phút mô phỏng, tương đương vài lượt thử của mỗi trục. Với camera ESP32-CAM, một lần đo trước đó có hai trục giữ "thẳng trước" hơn 40 phút sau khi dòng xe đã sang 25 % rẽ trái: điểm % của "thẳng trước" lơ lửng 95–100 %, chưa tới mức 105 % để trả về. Hạ mức trả về xuống 100 % thì sửa được ca này nhưng làm các dòng 5 % rẽ trái chờ lâu hơn, nên chưa đổi. Bản tự học đầu tiên (đo thời gian chờ theo từng cửa sổ 3 vòng) trong cùng tình huống mất từ 11 phút tới hơn 90 phút, có khi không đổi.
 
 ## 2. Bộ quyết định đèn
 
@@ -200,7 +200,7 @@ Luật chọn, riêng cho từng trục:
 3. Lúc quá tải, thử sai rất tốn nên đòi bằng chứng mạnh hơn: lượt thử quá tải phải đạt 80 %, không đạt thì giãn tới 16 lượt; đang giữ "thẳng trước" mà lượt quá tải có điểm từ 100 % là về "riêng".
 4. Lượt có xe ưu tiên, thiếu camera hoặc dưới 4 xe qua (`HOC_SO_XE`) thì không tính. Lượt thử bị bỏ vì xe ưu tiên hay thiếu camera thì không thử lại ngay lượt sau mà chờ đủ 4 lượt: camera thật thỉnh thoảng nhìn nhầm ra xe ưu tiên, và lúc đông xe thì hai lượt thử sát nhau làm có xe phải đứng chờ hơn 5 phút. Mỗi lần bật máy bắt đầu từ "riêng".
 
-Cách đo này dựa vào số đếm giảm dần khi xe qua vạch. Nếu hàng xe luôn đầy vùng camera và số đếm đứng yên, hoặc camera đếm nhảy lung tung, thì số xe qua bị sai; khi không đếm được xe nào, bộ tự học giữ nguyên kiểu đang có. Trong mô phỏng, số lần số đếm giảm lớn hơn số xe thật qua vạch khoảng 15 % với camera lí tưởng (xe rẽ phải tách khỏi làn ngoài cũng làm số đếm giảm) và 20–25 % với camera ESP32-S3-CAM (thêm nhiễu đếm). Bộ tự học so hai kiểu trên cùng một cách đếm nên vẫn chọn đúng kiểu ở các dòng xe đã thử.
+Cách đo này dựa vào số đếm giảm dần khi xe qua vạch. Nếu hàng xe luôn đầy vùng camera và số đếm đứng yên, hoặc camera đếm nhảy lung tung, thì số xe qua bị sai; khi không đếm được xe nào, bộ tự học giữ nguyên kiểu đang có. Trong mô phỏng, số lần số đếm giảm lớn hơn số xe thật qua vạch khoảng 15 % với camera lí tưởng (xe rẽ phải tách khỏi làn ngoài cũng làm số đếm giảm) và 20–25 % với camera ESP32-CAM (thêm nhiễu đếm). Bộ tự học so hai kiểu trên cùng một cách đếm nên vẫn chọn đúng kiểu ở các dòng xe đã thử.
 
 Kiểu "đối xứng" không nằm trong hai kiểu được thử, vì một lần thử sai có thể làm kẹt cả ngã tư; muốn dùng thì chọn tay.
 
@@ -261,22 +261,24 @@ LED trên board: xanh lá là đủ 4 camera, vàng là thiếu camera, xanh dư
 
 ## 4. Camera (`firmware/camera`)
 
-**Arduino IDE:** Board `ESP32S3 Dev Module`, Flash Size `16MB`, PSRAM `OPI PSRAM` (bắt buộc), Partition Scheme `16M Flash (3MB APP/9.9MB FATFS)`, USB CDC On Boot `Disabled`. Nạp qua đế nạp.
+**Arduino IDE (ESP32-CAM AI-Thinker):** Board `AI Thinker ESP32-CAM`, Partition Scheme `Huge APP (3MB No OTA/1MB SPIFFS)`; PSRAM của board này luôn bật. Nạp qua đế ESP32-CAM-MB (cổng micro USB, chip CH340): nếu báo "Failed to connect" thì giữ nút IO0 trên đế, bấm nút RST trên board camera, thả IO0 rồi nạp lại. Nạp xong bấm RST để chạy.
 
-Chân camera trong `cau_hinh.h` theo loại ESP32-S3-CAM phổ biến (trùng kiểu ESP32-S3-EYE). Nếu chế độ thu ảnh báo không khởi tạo được camera thì kiểm tra lại cáp và bảng chân này.
+Chân camera trong `cau_hinh.h` theo ESP32-CAM AI-Thinker (`LOAI_BOARD BOARD_ESP32_CAM`, mặc định). Đèn LED trắng ở chân 4 được giữ tắt để không hắt sáng lên sa bàn. Dùng ESP32-S3-CAM thì đổi `LOAI_BOARD` thành `BOARD_ESP32S3_CAM` và chọn Board `ESP32S3 Dev Module`, Flash Size `16MB`, PSRAM `OPI PSRAM`, USB CDC On Boot `Disabled`. Nếu chế độ thu ảnh báo không khởi tạo được camera thì kiểm tra lại cáp dẹt của camera và bảng chân này.
+
+ESP32-CAM nóng và dễ khởi động lại khi nguồn yếu: cấp 5 V chắc chắn vào chân 5V (không dùng chân 3V3), dây ngắn, tụ 470–1000 µF gần board.
 
 Mỗi board sửa hai dòng trong `cau_hinh.h`: `CAM_ID` (1 đến 4) và `CHE_DO`.
 
-**Gắn board:** cạnh dài của khung hình (320 điểm ảnh) phải nằm dọc theo đường, vạch dừng ở một mép ngắn của ảnh. Gắn ngược lại thì camera không thấy chiếc xe đứng sát vạch dừng (xem "Camera ESP32-S3-CAM trong mô phỏng" ở phần 1). Mô phỏng tính với ống kính thường 66° theo đường chéo; board mua về mà là ống kính góc rộng (120° hay 160°) thì khung hình khác hẳn và ảnh méo cong, phải xem lại vị trí gắn.
+**Gắn board:** cạnh dài của khung hình (320 điểm ảnh) phải nằm dọc theo đường, vạch dừng ở một mép ngắn của ảnh. Gắn ngược lại thì camera không thấy chiếc xe đứng sát vạch dừng (xem "Camera ESP32-CAM trong mô phỏng" ở phần 1). Mô phỏng tính với ống kính thường 66° theo đường chéo; board mua về mà là ống kính góc rộng (120° hay 160°) thì khung hình khác hẳn và ảnh méo cong, phải xem lại vị trí gắn.
 
 **Trình tự làm việc:**
 
 1. Nạp `CHE_DO_THU_ANH`. Camera phát WiFi `CAM1-SaBan` (mật khẩu `12345678`); nối máy tính vào rồi mở `http://192.168.4.1`.
 2. Trên trang đó: vẽ ROI quanh 2 làn chờ, bấm 4 góc làn ngoài, 4 góc làn trong. Chép dòng cấu hình trang in ra, dán đè lên dòng của camera đó trong `cau_hinh.h`, nạp lại. Dòng có sẵn trong `cau_hinh.h` là cấu hình tính từ hình học thiết kế (ROI 277 × 136 bắt đầu ở điểm (43, 52), vạch dừng ở mép phải ảnh, làn trong ở phía trên); dùng nó để so với ảnh thật xem camera có gắn đúng không.
 3. Thu ảnh huấn luyện bằng nút "Lưu 1 ảnh" hoặc "Tự lưu". Ảnh lưu là ảnh ROI, đúng ảnh sẽ đưa vào mô hình.
-4. Trên Edge Impulse: tải ảnh lên, gán nhãn `xe` cho xe thường và `xe_cuu_hoa`, `xe_quan_su`, `xe_cong_an`, `xe_cuu_thuong` cho 4 loại xe ưu tiên (đổi tên được ở `NHAN_UU_TIEN` trong `cau_hinh.h`). Tạo impulse ảnh 96 × 96 với Resize mode `Squash`, khối Object Detection (FOMO), huấn luyện, xuất `Arduino library`. Nên huấn luyện thêm một bản 160 × 160 và đo tốc độ trên board: nếu bản 160 × 160 vẫn chạy dưới khoảng 0,6 s mỗi khung thì dùng bản đó, vì ảnh 96 × 96 gộp mất một xe khi hàng xe xếp kín làn (firmware tự lấy kích thước ảnh từ thư viện, không phải sửa code). Ảnh 96 × 96 khá nhỏ: nên chọn 4 xe ưu tiên khác hẳn nhau về màu, và chụp đủ ảnh cho từng loại. Nếu mô hình không phân biệt nổi 4 loại thì gộp thành một nhãn `xe_uu_tien`; khi đó trung tâm coi mọi xe ưu tiên là xe cứu thương.
+4. Trên Edge Impulse: tải ảnh lên, gán nhãn `xe` cho xe thường và `xe_cuu_hoa`, `xe_quan_su`, `xe_cong_an`, `xe_cuu_thuong` cho 4 loại xe ưu tiên (đổi tên được ở `NHAN_UU_TIEN` trong `cau_hinh.h`). Tạo impulse ảnh 96 × 96 với Resize mode `Squash`, khối Object Detection (FOMO), huấn luyện, xuất `Arduino library`. Với ESP32-CAM giữ ảnh 96 × 96: bản 160 × 160 chạy quá chậm trên chip ESP32 (firmware tự lấy kích thước ảnh từ thư viện, nên đổi sang ESP32-S3-CAM thì thử được 160 × 160 mà không phải sửa code). Ảnh 96 × 96 khá nhỏ: nên chọn 4 xe ưu tiên khác hẳn nhau về màu, và chụp đủ ảnh cho từng loại. Nếu mô hình không phân biệt nổi 4 loại thì gộp thành một nhãn `xe_uu_tien`; khi đó trung tâm coi mọi xe ưu tiên là xe cứu thương.
 5. Cài thư viện `.zip` vào Arduino IDE, sửa `THU_VIEN_EI` trong `cau_hinh.h` cho đúng tên tệp `.h`, đổi `CHE_DO` thành `CHE_DO_DEM`, nạp lại.
-6. Camera in bản tin ra Serial kèm số khung xử lí được mỗi giây, và gửi ESP-NOW ngay sau mỗi khung (không dày hơn 4 gói mỗi giây; ở 1 khung/giây là 1 gói mỗi giây). Ở board trung tâm gõ `xem` để thấy số đếm và tỉ lệ mất gói. Trung tâm coi camera mất tín hiệu khi 3 s không có gói, nên camera phải xử lí được ít nhất chừng 1 khung mỗi 2 giây.
+6. Camera in bản tin ra Serial kèm số khung xử lí được mỗi giây (ESP32-CAM: dự kiến 0,7–1), và gửi ESP-NOW ngay sau mỗi khung (không dày hơn 4 gói mỗi giây; ở 1 khung/giây là 1 gói mỗi giây). Ở board trung tâm gõ `xem` để thấy số đếm và tỉ lệ mất gói. Trung tâm coi camera mất tín hiệu khi 3 s không có gói, nên camera phải xử lí được ít nhất chừng 1 khung mỗi 2 giây.
 
 `CHE_DO_GIA_LAP` không cần camera và mô hình: gõ `3 1 0` vào Serial để gửi s = 3, l = 1, emg = 0; gõ `3 1 2 1` để báo có xe cứu hỏa (ut = 1) ở làn trong. Dùng để thử đường truyền ESP-NOW trước khi có mô hình.
 
@@ -298,6 +300,6 @@ Bài cuối (mô phỏng xe) mất khoảng 20 phút. Bảng khảo sát kiểu 
 
 - Trình tự ưu tiên chi tiết theo báo cáo (các mốc T − 15 s, T − 10 s, bù 15 s xanh).
 - Tự học: giảm thêm cái giá của việc thử khi ngã tư quá tải; tìm cách đo phân biệt rõ hơn quãng 5 % và 25 % rẽ trái khi camera đếm có nhiễu; thử trên sa bàn thật khi camera đã đếm ổn định.
-- Camera: đo thời gian chạy mô hình 96 × 96 và 160 × 160 trên ESP32-S3-CAM thật, đo tỉ lệ nhận đúng thật rồi đưa vào mô phỏng thay cho giả định 95 %.
+- Camera: đo số khung/giây thật của ESP32-CAM với mô hình 96 × 96 ảnh màu, đo tỉ lệ nhận đúng thật rồi đưa vào mô phỏng thay cho giả định 95 %.
 - Bộ quyết định mức 3 (học máy).
 - Nối web với board qua Firebase Realtime Database.

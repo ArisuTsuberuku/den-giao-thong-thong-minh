@@ -6,6 +6,10 @@
 #include "cat_anh.h"
 
 inline bool mayAnhKhoiTao() {
+#if CHAN_DEN_FLASH >= 0
+  pinMode(CHAN_DEN_FLASH, OUTPUT);
+  digitalWrite(CHAN_DEN_FLASH, LOW);
+#endif
   camera_config_t c;
   memset(&c, 0, sizeof(c));
   c.ledc_channel = LEDC_CHANNEL_0;
