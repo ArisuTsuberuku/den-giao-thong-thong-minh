@@ -79,6 +79,11 @@ static void guiJpeg(uint8_t *jpg, size_t dai) {
 static void xuLyKhung() {              // toàn khung, để chỉnh ROI và làn
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) { may_chu.send(503, "text/plain", "Khong chup duoc anh"); return; }
+  if (fb->format == PIXFORMAT_JPEG) {  // ESP32-CAM: khung đã là JPEG, gửi thẳng
+    guiJpeg(fb->buf, fb->len);
+    esp_camera_fb_return(fb);
+    return;
+  }
   uint8_t *jpg = NULL;
   size_t dai = 0;
   bool duoc = frame2jpg(fb, 80, &jpg, &dai);
@@ -92,8 +97,9 @@ static void xuLyRoi() {                // ảnh ROI cỡ gốc, để làm dữ 
   const CauHinhCam &ch = CAU_HINH_CAM[CAM_ID];
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) { may_chu.send(503, "text/plain", "Khong chup duoc anh"); return; }
-  catRoi(fb, ch, anh_roi, ch.roi_w, ch.roi_h);
+  bool giai_nen = catRoi(fb, ch, anh_roi, ch.roi_w, ch.roi_h);
   esp_camera_fb_return(fb);
+  if (!giai_nen) { may_chu.send(500, "text/plain", "Khong giai nen duoc anh JPEG"); return; }
   uint8_t *jpg = NULL;
   size_t dai = 0;
   if (!fmt2jpg(anh_roi, (size_t)ch.roi_w * ch.roi_h * 3, ch.roi_w, ch.roi_h, PIXFORMAT_RGB888, 92, &jpg, &dai)) {

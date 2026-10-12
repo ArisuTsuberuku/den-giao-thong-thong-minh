@@ -265,6 +265,8 @@ LED trên board: xanh lá là đủ 4 camera, vàng là thiếu camera, xanh dư
 
 Chân camera trong `cau_hinh.h` theo ESP32-CAM AI-Thinker (`LOAI_BOARD BOARD_ESP32_CAM`, mặc định). Đèn LED trắng ở chân 4 được giữ tắt để không hắt sáng lên sa bàn. Dùng ESP32-S3-CAM thì đổi `LOAI_BOARD` thành `BOARD_ESP32S3_CAM` và chọn Board `ESP32S3 Dev Module`, Flash Size `16MB`, PSRAM `OPI PSRAM`, USB CDC On Boot `Disabled`. Nếu chế độ thu ảnh báo không khởi tạo được camera thì kiểm tra lại cáp dẹt của camera và bảng chân này.
 
+Trên ESP32-CAM, firmware chụp ảnh JPEG rồi giải nén ra RGB trước khi cắt ROI, vì chip ESP32 chép ảnh thô RGB565 vào PSRAM không kịp và có thể treo tới mức bị watchdog khởi động lại liên tục (`rst:0x8 (TG1WDT_SYS_RESET)`). Lúc khởi động, Serial in lần lượt "Đang khởi tạo camera...", "Camera đã chạy. Đang phát WiFi..." để biết board dừng ở bước nào.
+
 ESP32-CAM nóng và dễ khởi động lại khi nguồn yếu: cấp 5 V chắc chắn vào chân 5V (không dùng chân 3V3), dây ngắn, tụ 470–1000 µF gần board.
 
 Mỗi board sửa hai dòng trong `cau_hinh.h`: `CAM_ID` (1 đến 4) và `CHE_DO`.

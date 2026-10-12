@@ -24,10 +24,12 @@ void setup() {
   delay(300);
   Serial.printf("\n=== CAM %d - chế độ THU ẢNH ===\n", CAM_ID);
   if (!psramFound()) Serial.println(LOI_PSRAM);
+  Serial.printf("PSRAM: %u byte trống. Đang khởi tạo camera...\n", (unsigned)ESP.getFreePsram());
   if (!mayAnhKhoiTao()) {
     Serial.println("KHÔNG khởi tạo được camera. Kiểm tra cáp camera và các chân trong cau_hinh.h.");
     while (true) delay(1000);
   }
+  Serial.println("Camera đã chạy. Đang phát WiFi...");
   if (!thuAnhKhoiTao()) {
     Serial.println("KHÔNG phát được WiFi hoặc thiếu bộ nhớ.");
     while (true) delay(1000);

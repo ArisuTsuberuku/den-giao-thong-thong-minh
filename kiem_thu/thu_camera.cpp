@@ -1,5 +1,5 @@
 // thu_camera.cpp — Kiểm tra trên máy tính các phần của firmware camera không cần phần cứng:
-// cắt ROI và co ảnh (cat_anh.h), gán xe vào làn và lọc nhiễu 5 khung (lan_duong.h).
+// cắt ROI và co ảnh từ khung RGB565 hoặc RGB888 (cat_anh.h), gán xe vào làn và lọc nhiễu 5 khung (lan_duong.h).
 // Chạy: g++ -std=c++11 -Wall -Wextra -o /tmp/thu_camera kiem_thu/thu_camera.cpp && /tmp/thu_camera
 #include <cstdio>
 #include <vector>
@@ -37,6 +37,17 @@ int main() {
   std::vector<uint8_t> goc(120 * 160 * 3);
   catRoiRgb565(khung.data(), RONG, CAO, ch, goc.data(), 120, 160);   // cỡ gốc: mỗi ô đúng một điểm ảnh
   KIEM(goc[(0 * 120 + 59) * 3 + 2] >= 248 && goc[(0 * 120 + 60) * 3 + 0] >= 248, "cat co goc: ranh gioi do/xanh dung cot 60");
+
+  // ESP32-CAM: khung JPEG giải nén ra 3 byte B, G, R mỗi điểm; cắt từ đó phải ra đúng như cắt từ RGB565
+  std::vector<uint8_t> khung888(RONG * CAO * 3);
+  for (int i = 0; i < RONG * CAO; i++) {
+    uint16_t v = (uint16_t)((khung[2 * i] << 8) | khung[2 * i + 1]);
+    khung888[3 * i] = (uint8_t)((v & 0x1F) << 3); khung888[3 * i + 1] = (uint8_t)(((v >> 5) & 0x3F) << 2); khung888[3 * i + 2] = (uint8_t)((v >> 11) << 3);
+  }
+  std::vector<uint8_t> nho888(96 * 96 * 3), goc888(120 * 160 * 3);
+  catRoiRgb888(khung888.data(), RONG, CAO, ch, nho888.data(), 96, 96);
+  catRoiRgb888(khung888.data(), RONG, CAO, ch, goc888.data(), 120, 160);
+  KIEM(nho888 == nho && goc888 == goc, "cat tu khung RGB888 (B, G, R) phai giong het cat tu khung RGB565");
 
   // ---------- điểm trong tứ giác, gán làn ----------
   Diem thang[4] = {{90, 20}, {150, 20}, {170, 230}, {60, 230}};   // hình thang như làn nhìn phối cảnh

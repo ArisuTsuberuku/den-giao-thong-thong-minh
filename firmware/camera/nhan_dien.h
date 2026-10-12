@@ -35,7 +35,7 @@ inline uint8_t loaiTheoNhan(const char *nhan) {
 
 // Trả về số xe tìm được (ghi vào ra[]), hoặc -1 nếu mô hình báo lỗi.
 inline int nhanDien(const camera_fb_t *fb, const CauHinhCam &ch, VatThe *ra, int toi_da) {
-  catRoi(fb, ch, anh_mo_hinh, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
+  if (!catRoi(fb, ch, anh_mo_hinh, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT)) return -1;
   ei::signal_t tin_hieu;
   tin_hieu.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
   tin_hieu.get_data = &layDiemAnh;
