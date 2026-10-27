@@ -108,6 +108,18 @@ int main() {
   sai.them(a1); sai.them(a2); sai.them(a2); sai.them(a2);
   KIEM(sai.layKetQua().s == 5, "so khung la khong hop le (4) thi dung 3");
 
+  // ---------- đọc vùng đếm trang web gửi lên (lưu vào board) ----------
+  CauHinhCam v;
+  KIEM(vungDocChuoi("43,52,277,136,51,159,51,120,336,120,336,180,51,120,51,81,336,60,336,120", v) &&
+       v.roi_x == 43 && v.roi_h == 136 && v.lan_ngoai[2].x == 336 && v.lan_trong[3].y == 120, "doc 20 so cua vung dem mac dinh");
+  KIEM(vungDocChuoi("0 0 320 240 -10,5 20,5 20,30 -10,30 1,1 2,1 2,2 1,2", v) && v.lan_ngoai[0].x == -10, "doc so am va khoang trang");
+  CauHinhCam truoc = v;
+  KIEM(!vungDocChuoi("43,52,277,136,51,159", v), "thieu so thi tu choi");
+  KIEM(!vungDocChuoi("100,52,277,136,51,159,51,120,336,120,336,180,51,120,51,81,336,60,336,120", v), "ROI tran khung thi tu choi");
+  KIEM(!vungDocChuoi("43,52,10,136,51,159,51,120,336,120,336,180,51,120,51,81,336,60,336,120", v), "ROI hep hon 16 thi tu choi");
+  KIEM(!vungDocChuoi("43,52,277,136,51,159,51,120,900,120,336,180,51,120,51,81,336,60,336,120", v), "goc lan qua xa thi tu choi");
+  KIEM(v.roi_x == truoc.roi_x && v.roi_w == truoc.roi_w, "tu choi thi giu nguyen vung cu");
+
   printf(so_loi == 0 ? "DAT: khong co loi.\n" : "KHONG DAT: %d loi.\n", so_loi);
   return so_loi == 0 ? 0 : 1;
 }

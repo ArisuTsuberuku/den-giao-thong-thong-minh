@@ -8,6 +8,7 @@
 #include "img_converters.h"
 #include "cau_hinh.h"
 #include "cat_anh.h"
+#include "vung_dem.h"
 
 #if LOAI_BOARD == BOARD_ESP32_CAM
 #define DINH_DANG_ANH PIXFORMAT_JPEG
@@ -40,7 +41,7 @@ inline bool mayAnhKhoiTao() {
   c.fb_count = 2;
   if (esp_camera_init(&c) != ESP_OK) return false;
   sensor_t *cb = esp_camera_sensor_get();
-  if (cb) { cb->set_vflip(cb, LAT_DOC); cb->set_hmirror(cb, LAT_NGANG); }
+  if (cb) { cb->set_vflip(cb, lat_doc); cb->set_hmirror(cb, lat_ngang); }   // lat_doc, lat_ngang: vung_dem.h
   return true;
 }
 

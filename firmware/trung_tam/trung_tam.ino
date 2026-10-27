@@ -5,8 +5,9 @@
 //   quyet_dinh.h  bộ luật lập kế hoạch (sửa luật ở đây, nhớ sửa cả web/quyet_dinh.js)
 //   dieu_khien.h  máy trạng thái xanh → vàng → đỏ toàn phần, xe ưu tiên, tự học kiểu chia pha
 //   den.h         xuất chân đèn, có kiểm tra xung đột
-//   nhan_tin.h    nhận ESP-NOW, giải mã JSON
-//   cau_hinh.h    chân, kênh WiFi, thời gian
+//   nhan_tin.h    nhận ESP-NOW, giải mã JSON, gửi lệnh xuống camera
+//   web.h         phát WiFi "TRUNG-TAM-SaBan", trang điều khiển http://192.168.4.1
+//   cau_hinh.h    chân, kênh WiFi, thời gian      cau_hinh_mang.h  tên và mật khẩu WiFi, bật tắt trang web
 //
 // Thư viện cần cài: ArduinoJson (Library Manager). Cách nạp và cách thử: xem README.md.
 // Không dùng delay() trong loop(); mọi thứ chạy theo millis().
@@ -14,6 +15,9 @@
 #include "dieu_khien.h"
 #include "den.h"
 #include "nhan_tin.h"
+#if DUNG_WEB
+#include "web.h"
+#endif
 
 ThamSo ts = {
   CHE_DO_BAN_DAU, T_MIN, T_MAX, CONG_THEM, XE_QUY_DOI, T_VANG, T_DO_TOAN_PHAN,
@@ -169,6 +173,48 @@ void inTrangThai() {
                             (unsigned long)goi[h].so_mat, 100.0 * goi[h].so_mat / tong);
     Serial.println();
   }
+  for (int h = 1; h <= 4; h++) {
+    const TrangThaiCam &c = tt_cam[h];
+    if (!c.co) { Serial.printf("  CAM %d: chưa có tin trạng thái\n", h); continue; }
+    Serial.printf("  CAM %d: chế độ %d, %.1f khung/s, %s, sóng %d dBm, vùng %s, tin cách đây %lu s\n", h, c.cd, c.kh,
+                  c.ip[0] ? c.ip : "chưa nối WiFi", c.rs, c.vl ? "đã lưu" : "mặc định", (unsigned long)((millis() - c.t) / 1000));
+  }
+}
+
+// Chuỗi JSON cho trang web (web.h). Gọi 2 lần mỗi giây.
+void taoTrangThaiWeb(char *b, size_t co) {
+  size_t n = 0;
+#define THEM(...) do { if (n < co) n += snprintf(b + n, co - n, __VA_ARGS__); } while (0)
+  int32_t con = dk.conLai(t_dieu_khien);
+  THEM("{\"t\":%lu,\"cd\":%d,\"kieu\":%lu,\"tua\":%lu,\"cs\":%lu,\"pha\":%d,\"loi\":%d,\"con\":%ld,\"ck\":%lu,\"buoc\":%d,\"sb\":%u,"
+       "\"uh\":%u,\"xanh\":%u,\"vang\":%u,\"den\":[",
+       (unsigned long)(t_dieu_khien / 1000), dk.che_do_kh == CHE_DO_CO_DINH ? 0 : 1, (unsigned long)ts.kieu_pha,
+       (unsigned long)he_so_tua, (unsigned long)(ts.cat_som / 1000), (int)dk.pha, dk.loi ? 1 : 0,
+       (long)(con >= 0 ? (con + 999) / 1000 : -1), (unsigned long)dk.chu_ki, dk.i_buoc, dk.kh.so_buoc, dk.ut_huong, dk.xanh, dk.vang);
+  for (int g = 0; g < 8; g++) THEM("%s%u", g ? "," : "", dk.mauNhom(g, t_dieu_khien));
+  THEM("],\"h\":[");
+  for (int h = 1; h <= 4; h++) {
+    const SoDem &d = dk.dem[h];
+    THEM("%s{\"co\":%d,\"s\":%u,\"l\":%u,\"emg\":%u,\"ut\":%u,\"song\":%d,\"tay\":%d,\"nhan\":%lu,\"mat\":%lu}", h > 1 ? "," : "",
+         d.co ? 1 : 0, d.s, d.l, d.emg, d.ut, dk.conHan(h, t_dieu_khien) ? 1 : 0, d.giu ? 1 : 0,
+         (unsigned long)goi[h].so_goi, (unsigned long)goi[h].so_mat);
+  }
+  THEM("],\"c\":[");
+  for (int h = 1; h <= 4; h++) {
+    const TrangThaiCam &c = tt_cam[h];
+    THEM("%s{\"co\":%d,\"ip\":\"%s\",\"cd\":%d,\"kh\":%.1f,\"rs\":%d,\"vl\":%d,\"lat\":%d,\"up\":%lu,\"cach\":%lu}", h > 1 ? "," : "",
+         c.co ? 1 : 0, c.ip, c.cd, c.kh, c.rs, c.vl, c.lat, (unsigned long)c.up, (unsigned long)(c.co ? (millis() - c.t) / 1000 : 0));
+  }
+#if DUNG_WEB
+  uint8_t kenh = 0;
+  wifi_second_chan_t phu;
+  esp_wifi_get_channel(&kenh, &phu);
+  THEM("],\"wn\":%u,\"wcf\":%d,\"wip\":\"%s\",\"kenh\":%u}", wn_tt, TEN_WIFI_NGOAI[0] ? 1 : 0,
+       wn_tt == 2 ? WiFi.localIP().toString().c_str() : "", kenh);
+#else
+  THEM("]}");
+#endif
+#undef THEM
 }
 
 void inHuongDan() {
@@ -185,11 +231,15 @@ void inHuongDan() {
   Serial.println("  xem                            in trạng thái và tỉ lệ mất gói");
   Serial.println("  xoa                            bỏ các số đếm đã gõ tay");
   Serial.println("  thuday                         lần lượt sáng từng bóng để kiểm tra dây");
+#if DUNG_WEB
+  Serial.println("  wifi                           nối lại hotspot máy tính (TEN_WIFI_NGOAI trong cau_hinh_mang.h)");
+#endif
   Serial.println();
 }
 
 // ---------- Nhận tin ----------
 void nhanBanTin(const char *chuoi, bool tu_serial) {
+  if (!tu_serial && nhanTrangThaiCam(chuoi, millis())) return;   // tin trạng thái của camera, không phải số đếm
   BanTin b;
   if (!giaiMaBanTin(chuoi, b)) {
     if (tu_serial) Serial.println("Không hiểu bản tin. Ví dụ đúng: {\"id\":1,\"s\":3,\"l\":1,\"emg\":0}");
@@ -249,6 +299,9 @@ void xuLyLenh(char *dong) {
     else Serial.println("Tắt cắt xanh sớm.");
   }
   else if (!strcmp(dong, "xem")) inTrangThai();
+#if DUNG_WEB
+  else if (!strcmp(dong, "wifi")) wifiNgoaiThu();
+#endif
   else if (!strcmp(dong, "xoa")) {
     for (int h = 1; h <= 4; h++) if (dk.dem[h].giu) { dk.dem[h].co = false; dk.dem[h].giu = false; dk.dem[h].emg = 0; dk.dem[h].ut = 0; }
     Serial.println("Đã bỏ các số đếm gõ tay.");
@@ -302,6 +355,11 @@ void setup() {
   inHuongDan();
   Serial.printf("ESP-NOW kênh %d: %s. Địa chỉ MAC: %s\n", KENH_WIFI, co_espnow ? "sẵn sàng" : "KHÔNG khởi tạo được",
                 WiFi.macAddress().c_str());
+#if DUNG_WEB
+  webKhoiTao();
+  Serial.printf("WiFi \"%s\", mật khẩu \"%s\". Nối điện thoại hoặc máy tính vào rồi mở http://%s\n", TEN_WIFI_TRUNG_TAM,
+                MAT_KHAU_TRUNG_TAM, WiFi.softAPIP().toString().c_str());
+#endif
   dk.khiSuKien = khiSuKien;
   t_millis_truoc = millis();
   dk.khoiDong(t_dieu_khien);
@@ -315,6 +373,10 @@ void loop() {
   GoiTin g;
   while (nhanTinLay(g)) nhanBanTin(g.noi_dung, false);
   docSerial();
+#if DUNG_WEB
+  char dong_web[160];
+  while (webLayLenh(dong_web, sizeof(dong_web))) xuLyLenh(dong_web);
+#endif
 
   dk.capNhat(t_dieu_khien);
 
@@ -323,4 +385,14 @@ void loop() {
   if (!denXuat(mau) && !dk.loi) dk.baoLoi();   // lớp kiểm tra cuối cùng từ chối: chuyển sang nháy vàng
 
   ledBao();
+#if DUNG_WEB
+  wifiNgoaiChay();
+  static uint32_t t_web = 0;
+  if (bay_gio - t_web >= 500) {
+    t_web = bay_gio;
+    static char b[sizeof(trang_thai_web)];
+    taoTrangThaiWeb(b, sizeof(b));
+    webDatTrangThai(b);
+  }
+#endif
 }

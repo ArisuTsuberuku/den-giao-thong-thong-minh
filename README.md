@@ -265,7 +265,7 @@ LED trên board: xanh lá là đủ 4 camera, vàng là thiếu camera, xanh dư
 
 Chân camera trong `cau_hinh.h` theo ESP32-CAM AI-Thinker (`LOAI_BOARD BOARD_ESP32_CAM`, mặc định). Đèn LED trắng ở chân 4 được giữ tắt để không hắt sáng lên sa bàn. Dùng ESP32-S3-CAM thì đổi `LOAI_BOARD` thành `BOARD_ESP32S3_CAM` và chọn Board `ESP32S3 Dev Module`, Flash Size `16MB`, PSRAM `OPI PSRAM`, USB CDC On Boot `Disabled`. Nếu chế độ thu ảnh báo không khởi tạo được camera thì kiểm tra lại cáp dẹt của camera và bảng chân này.
 
-Trên ESP32-CAM, firmware chụp ảnh JPEG rồi giải nén ra RGB trước khi cắt ROI, vì chip ESP32 chép ảnh thô RGB565 vào PSRAM không kịp và có thể treo tới mức bị watchdog khởi động lại liên tục (`rst:0x8 (TG1WDT_SYS_RESET)`). Lúc khởi động, Serial in lần lượt "Đang khởi tạo camera...", "Camera đã chạy. Đang phát WiFi..." để biết board dừng ở bước nào.
+Trên ESP32-CAM, firmware chụp ảnh JPEG rồi giải nén ra RGB trước khi cắt ROI, vì chip ESP32 chép ảnh thô RGB565 vào PSRAM không kịp và có thể treo tới mức bị watchdog khởi động lại liên tục (`rst:0x8 (TG1WDT_SYS_RESET)`). Lúc khởi động, Serial in lần lượt "Đang khởi tạo camera...", "Camera đã chạy. Đang bật WiFi..." để biết board dừng ở bước nào.
 
 ESP32-CAM nóng và dễ khởi động lại khi nguồn yếu: cấp 5 V chắc chắn vào chân 5V (không dùng chân 3V3), dây ngắn, tụ 470–1000 µF gần board.
 
@@ -275,8 +275,8 @@ Mỗi board sửa hai dòng trong `cau_hinh.h`: `CAM_ID` (1 đến 4) và `CHE_D
 
 **Trình tự làm việc:**
 
-1. Nạp `CHE_DO_THU_ANH`. Camera phát WiFi `CAM1-SaBan` (mật khẩu `12345678`); nối máy tính vào rồi mở `http://192.168.4.1`.
-2. Trên trang đó: vẽ ROI quanh 2 làn chờ, bấm 4 góc làn ngoài, 4 góc làn trong. Chép dòng cấu hình trang in ra, dán đè lên dòng của camera đó trong `cau_hinh.h`, nạp lại. Dòng có sẵn trong `cau_hinh.h` là cấu hình tính từ hình học thiết kế (ROI 277 × 136 bắt đầu ở điểm (43, 52), vạch dừng ở mép phải ảnh, làn trong ở phía trên); dùng nó để so với ảnh thật xem camera có gắn đúng không.
+1. Nạp `CHE_DO_THU_ANH`. Bật board trung tâm trước: camera nối vào WiFi `TRUNG-TAM-SaBan` và có địa chỉ `http://192.168.4.11` (CAM 1) đến `.14` (CAM 4); mở từ trang của trung tâm (nút "Chọn vùng đếm"). Không thấy trung tâm sau 8 giây thì camera tự phát WiFi `CAM1-SaBan` (mật khẩu `12345678`) như bản cũ, mở `http://192.168.4.1`.
+2. Trên trang đó: ảnh lộn ngược thì bấm "Xoay 180°" (hoặc tích "Lật dọc", "Lật ngang") trước. Vẽ ROI quanh 2 làn chờ, bấm 4 góc làn ngoài, 4 góc làn trong, rồi bấm "Lưu vào board": vùng mới có tác dụng ngay và còn sau khi tắt máy, không phải nạp lại. Muốn ghi hẳn vào code thì chép dòng cấu hình trang in ra, dán đè lên dòng của camera đó trong `cau_hinh.h`; "Về số mặc định" bỏ vùng và kiểu lật đã lưu trong board. Dòng có sẵn trong `cau_hinh.h` là cấu hình tính từ hình học thiết kế (ROI 277 × 136 bắt đầu ở điểm (43, 52), vạch dừng ở mép phải ảnh, làn trong ở phía trên); dùng nó để so với ảnh thật xem camera có gắn đúng không.
 3. Thu ảnh huấn luyện bằng nút "Lưu 1 ảnh" hoặc "Tự lưu". Ảnh lưu là ảnh ROI, đúng ảnh sẽ đưa vào mô hình.
 4. Trên Edge Impulse: tải ảnh lên, gán nhãn `xe` cho xe thường và `xe_cuu_hoa`, `xe_quan_su`, `xe_cong_an`, `xe_cuu_thuong` cho 4 loại xe ưu tiên (đổi tên được ở `NHAN_UU_TIEN` trong `cau_hinh.h`). Tạo impulse ảnh 96 × 96 với Resize mode `Squash`, khối Object Detection (FOMO), huấn luyện, xuất `Arduino library`. Với ESP32-CAM giữ ảnh 96 × 96: bản 160 × 160 chạy quá chậm trên chip ESP32 (firmware tự lấy kích thước ảnh từ thư viện, nên đổi sang ESP32-S3-CAM thì thử được 160 × 160 mà không phải sửa code). Ảnh 96 × 96 khá nhỏ: nên chọn 4 xe ưu tiên khác hẳn nhau về màu, và chụp đủ ảnh cho từng loại. Nếu mô hình không phân biệt nổi 4 loại thì gộp thành một nhãn `xe_uu_tien`; khi đó trung tâm coi mọi xe ưu tiên là xe cứu thương.
 5. Cài thư viện `.zip` vào Arduino IDE, sửa `THU_VIEN_EI` trong `cau_hinh.h` cho đúng tên tệp `.h`, đổi `CHE_DO` thành `CHE_DO_DEM`, nạp lại.
@@ -287,6 +287,24 @@ Mỗi board sửa hai dòng trong `cau_hinh.h`: `CAM_ID` (1 đến 4) và `CHE_D
 Lọc nhiễu trước khi gửi (`SO_KHUNG_LOC`, mặc định 3): `s`, `l` lấy trung vị 3 khung gần nhất; `emg` chỉ bật khi ít nhất 2 trong 3 khung thấy xe ưu tiên, và `ut` là loại xuất hiện ở nhiều khung nhất. Đặt 5 thì chống nhiễu hơn nhưng ở 1 khung/giây trễ thêm 1 s; đặt 1 là không lọc (mô phỏng cho thấy khi đó đèn hay mở ưu tiên nhầm).
 
 Nếu thư viện Edge Impulse báo lỗi khi biên dịch với lõi `esp32` 3.x, cài lõi 2.0.17; code trong repo biên dịch được trên cả hai dòng.
+
+### WiFi trung tâm: điều khiển cả 5 board trên một trang
+
+Board trung tâm phát WiFi `TRUNG-TAM-SaBan` (mật khẩu `12345678`) trên đúng kênh ESP-NOW. 4 camera nối vào WiFi này nên luôn cùng kênh với trung tâm; số đếm xe vẫn đi bằng ESP-NOW như cũ. Nối điện thoại hoặc máy tính vào rồi mở `http://192.168.4.1`:
+
+- Mỗi hướng: đèn thẳng và trái đang sáng, số xe hai làn, xe ưu tiên, số gói ESP-NOW và tình trạng camera (chế độ, khung/giây, sóng WiFi, vùng đã lưu hay mặc định, có lật ảnh không). Nút "Chọn vùng đếm" mở trang của camera đó; "Nháy LED" làm LED đỏ trên lưng board nháy 3 giây để biết board nào là CAM mấy; "Gõ tay" đặt số xe cho trung tâm, hoặc cho camera đang ở chế độ giả lập.
+- Cả 4 camera cùng lúc: hỏi trạng thái, nháy LED, lật 180°, khởi động lại 4 camera, hoặc khởi động lại cả 5 board. Mỗi lệnh là một gói ESP-NOW phát chung nên cả 4 camera nhận cùng lúc. "Xem ảnh 4 camera" hiện khung hình của cả 4.
+- Đèn: chế độ cố định hay thích ứng, kiểu chia pha, tua nhanh, cắt xanh sớm, bỏ số gõ tay, thử dây; giống hệt các lệnh gõ ở Serial.
+
+Trang web chạy ở lõi 0, điều khiển đèn chạy ở lõi 1, nên mở trang không làm lệch đèn. Tắt hẳn WiFi và trang web: đặt `DUNG_WEB` thành 0 trong `firmware/trung_tam/cau_hinh_mang.h`. Camera không nối WiFi trung tâm: đặt `NOI_WIFI_TRUNG_TAM` thành 0 trong `firmware/camera/cau_hinh_mang.h`.
+
+**Mở trang từ hotspot của máy tính:** điền tên và mật khẩu hotspot vào `TEN_WIFI_NGOAI`, `MAT_KHAU_WIFI_NGOAI` trong `firmware/trung_tam/cau_hinh_mang.h`. Trung tâm vừa phát WiFi riêng cho camera vừa nối vào hotspot; Serial in địa chỉ (Windows thường là `192.168.137.x`), hoặc mở `http://densaban.local`. Ảnh và trang chọn vùng của camera đi qua trung tâm (`http://<địa chỉ trung tâm>/c1/` ... `/c4/`), vì máy tính trong hotspot không thấy mạng `192.168.4.x` của camera.
+
+- Hotspot phải ở băng 2,4 GHz (Windows: Settings > Network & internet > Mobile hotspot > Band = 2.4 GHz); ESP32 không bắt được 5 GHz.
+- Một radio chỉ chạy được một kênh: khi nối hotspot, WiFi của trung tâm và ESP-NOW chuyển sang kênh của hotspot. Camera rớt ra rồi tự tìm và nối lại sau vài giây đến 20 giây; trong lúc đó trung tâm báo mất camera và trục đó chạy thời gian cố định, rồi tự trở lại.
+- Không tìm thấy hotspot trong 20 giây thì trung tâm thôi tìm (lúc tìm, radio nhảy qua các kênh làm camera mất tin). Bật hotspot rồi gõ `wifi` ở Serial hoặc bấm "Nối lại hotspot" trên trang.
+
+**Gửi ảnh qua ESP-NOW thì sao:** làm được nhưng không nên. Một gói ESP-NOW chỉ 250 byte, một ảnh JPEG 320 × 240 khoảng 8–15 KB tức 40–60 gói, phải tự đánh số, ghép và gửi lại gói mất (gói phát chung không có xác nhận); 4 camera cùng gửi sẽ chiếm sóng và làm trễ bản tin đếm xe. Ảnh chỉ cần lúc chọn vùng và xem thử, nên đi bằng WiFi như trên; ESP-NOW chỉ chở bản tin đếm xe và lệnh.
 
 ## 5. Kiểm tra trên máy tính
 

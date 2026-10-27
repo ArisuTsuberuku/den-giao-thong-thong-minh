@@ -13,6 +13,45 @@ struct CauHinhCam {
   Diem lan_trong[4];                    // 4 góc làn trong (thẳng hoặc trái) → đếm vào "l"
 };
 
+// Kiểm tra một vùng đếm trước khi dùng hoặc lưu vào board: ROI phải nằm trọn trong khung 320 × 240
+// và đủ lớn; góc làn được phép ra ngoài khung một chút (vạch dừng có thể nằm ngoài mép ảnh).
+inline bool vungHopLe(const CauHinhCam &c, int rong = 320, int cao = 240) {
+  if (c.roi_x < 0 || c.roi_y < 0 || c.roi_w < 16 || c.roi_h < 16) return false;
+  if (c.roi_x + c.roi_w > rong || c.roi_y + c.roi_h > cao) return false;
+  for (int i = 0; i < 4; i++) {
+    const Diem *p[2] = {&c.lan_ngoai[i], &c.lan_trong[i]};
+    for (int k = 0; k < 2; k++)
+      if (p[k]->x < -rong / 2 || p[k]->x > rong + rong / 2 || p[k]->y < -cao / 2 || p[k]->y > cao + cao / 2) return false;
+  }
+  return true;
+}
+
+// Đọc 20 số "roi_x,roi_y,roi_w,roi_h, 4 góc làn ngoài (x,y), 4 góc làn trong (x,y)" (cách nhau bởi
+// dấu phẩy hoặc khoảng trắng) do trang web gửi lên. Trả về true nếu đủ 20 số và vùng hợp lệ.
+inline bool vungDocChuoi(const char *s, CauHinhCam &ra) {
+  int v[20], n = 0;
+  while (*s && n < 20) {
+    while (*s && !(*s == '-' || (*s >= '0' && *s <= '9'))) s++;
+    if (!*s) break;
+    bool am = false;
+    if (*s == '-') { am = true; s++; }
+    if (!(*s >= '0' && *s <= '9')) continue;
+    long x = 0;
+    while (*s >= '0' && *s <= '9') { x = x * 10 + (*s - '0'); if (x > 30000) x = 30000; s++; }
+    v[n++] = (int)(am ? -x : x);
+  }
+  if (n != 20) return false;
+  CauHinhCam c;
+  c.roi_x = (int16_t)v[0]; c.roi_y = (int16_t)v[1]; c.roi_w = (int16_t)v[2]; c.roi_h = (int16_t)v[3];
+  for (int i = 0; i < 4; i++) {
+    c.lan_ngoai[i].x = (int16_t)v[4 + 2 * i]; c.lan_ngoai[i].y = (int16_t)v[5 + 2 * i];
+    c.lan_trong[i].x = (int16_t)v[12 + 2 * i]; c.lan_trong[i].y = (int16_t)v[13 + 2 * i];
+  }
+  if (!vungHopLe(c)) return false;
+  ra = c;
+  return true;
+}
+
 // Loại xe: 0 xe thường; 1 cứu hỏa, 2 quân sự, 3 công an, 4 cứu thương. Số của xe ưu tiên cũng là
 // thứ tự được mở đèn ("hỏa → sự → công → thương"): số nhỏ hơn đi trước.
 struct VatThe {
