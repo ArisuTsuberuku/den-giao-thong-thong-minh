@@ -10,14 +10,16 @@ static uint32_t so_thu_tu_goi = 0;
 
 // Nối WiFi trung tâm (nếu có) và bật ESP-NOW; xem mang.h.
 inline bool guiTinKhoiTao() {
-  return mangKhoiTao(false);
+  bool duoc = mangKhoiTao(false);
+  mangGanBaoNap();
+  return duoc;
 }
 
 // Gửi một gói; chuỗi JSON vừa gửi được chép ra da_gui (nếu khác NULL) để in Serial.
 inline bool guiBanTin(uint8_t s, uint8_t l, uint8_t emg, uint8_t ut, char *da_gui, size_t co) {
   char goi[96];
   snprintf(goi, sizeof(goi), "{\"id\":%d,\"seq\":%lu,\"s\":%u,\"l\":%u,\"emg\":%u,\"ut\":%u}",
-           CAM_ID, (unsigned long)so_thu_tu_goi++, s, l, emg, ut);
+           cam_id, (unsigned long)so_thu_tu_goi++, s, l, emg, ut);
   if (da_gui) snprintf(da_gui, co, "%s", goi);
   return mangGui(goi);
 }

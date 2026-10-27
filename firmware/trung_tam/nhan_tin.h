@@ -32,6 +32,14 @@ struct TrangThaiCam {
   int lat;                   // bit 0 lật dọc, bit 1 lật ngang
   uint32_t up;               // camera đã chạy bao nhiêu giây
   uint32_t t;                // millis() lúc nhận tin gần nhất
+  char fw[24];               // phiên bản firmware (ngày giờ biên dịch)
+  int ch;                    // loại chip: 0 ESP32, 9 ESP32-S3
+  int mh;                    // 1: firmware có mô hình nhận diện (chạy được chế độ đếm)
+  int nap;                   // nạp qua WiFi: 0 không, 1 đang tải, 2 tải xong sắp khởi động lại, 3 lỗi
+  int np;                    // phần trăm đã tải
+  int nl;                    // mã lỗi lần nạp gần nhất
+  int xn;                    // 1: firmware đang chạy đã được xác nhận chạy ổn (hoặc nạp bằng USB)
+  int rb;                    // 1: lần nạp gần nhất lỗi, camera đã quay về bản cũ
 };
 static TrangThaiCam tt_cam[5];
 
@@ -100,7 +108,7 @@ inline bool nhanTrangThaiCam(const char *chuoi, uint32_t bay_gio) {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument d;
 #else
-  StaticJsonDocument<256> d;
+  StaticJsonDocument<768> d;
 #endif
   if (deserializeJson(d, chuoi)) return true;
   int id = d["id"] | 0;
@@ -110,6 +118,9 @@ inline bool nhanTrangThaiCam(const char *chuoi, uint32_t bay_gio) {
   snprintf(c.ip, sizeof(c.ip), "%s", (const char *)(d["ip"] | ""));
   c.cd = d["cd"] | 0; c.kh = d["kh"] | 0.0f; c.rs = d["rs"] | 0; c.vl = d["vl"] | 0; c.lat = d["lat"] | 0;
   c.up = d["up"] | 0; c.t = bay_gio;
+  snprintf(c.fw, sizeof(c.fw), "%s", (const char *)(d["fw"] | ""));
+  c.ch = d["ch"] | -1; c.mh = d["mh"] | 0; c.nap = d["nap"] | 0; c.np = d["np"] | 0; c.nl = d["nl"] | 0;
+  c.xn = d["xn"] | 1; c.rb = d["rb"] | 0;
   return true;
 }
 

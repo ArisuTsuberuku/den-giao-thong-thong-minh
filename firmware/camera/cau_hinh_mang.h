@@ -3,6 +3,7 @@
 // Tách khỏi cau_hinh.h để không đụng tới ROI và tứ giác làn đã đo cho từng camera.
 #pragma once
 #include "cau_hinh.h"
+#include "danh_tinh.h"
 
 // ---------- WiFi của board trung tâm ----------
 #define NOI_WIFI_TRUNG_TAM 1                // 0: không nối, chỉ dùng ESP-NOW như bản cũ
@@ -10,7 +11,7 @@
 #define MAT_KHAU_TRUNG_TAM "12345678"
 #define CHO_NOI_MS 8000                     // lúc bật máy chờ nối tối đa chừng này; trung tâm chưa bật thì vẫn chạy tiếp
 // Địa chỉ cố định cho dễ nhớ: CAM 1 là 192.168.4.11, CAM 2 là 192.168.4.12, ...
-#define IP_CAM_BYTE_CUOI (10 + CAM_ID)
+#define IP_CAM_BYTE_CUOI (10 + cam_id)        // cam_id: số CAM đang lưu trong board (danh_tinh.h)
 
 // ---------- Trang web trên camera ----------
 // Chế độ thu ảnh luôn có trang web. Ở chế độ đếm, bật trang web để vẫn xem ảnh và chỉnh vùng đếm

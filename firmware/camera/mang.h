@@ -14,10 +14,16 @@
 //   {"lenh":"vungmacdinh","den":3} bỏ vùng và kiểu lật đã lưu, về số trong cau_hinh.h
 //   {"lenh":"lat","den":0,"doc":1,"ngang":1}  lật ảnh (cả hai là 1: xoay 180°), lưu vào board
 //   {"lenh":"gia","den":1,"s":3,"l":1,"emg":0,"ut":0}   đặt số đếm giả (chỉ ở chế độ giả lập)
+//   {"lenh":"chedo","den":2,"cd":2}  đổi chế độ (1 thu ảnh, 2 đếm, 3 giả lập), lưu vào board rồi khởi động lại
+//   {"lenh":"doiid","den":2,"moi":3} đổi số CAM, lưu vào board rồi khởi động lại
+//   {"lenh":"nap","den":2,"kt":1234567}  tải firmware mới từ trung tâm (nap_tu_xa.h)
 // Tin trạng thái camera gửi lên mỗi 3 giây:
-//   {"tt":1,"id":1,"cd":2,"ip":"192.168.4.11","kh":1.0,"rs":-48,"vl":1,"lat":3,"up":125}
+//   {"tt":1,"id":1,"cd":2,"ip":"192.168.4.11","kh":1.0,"rs":-48,"vl":1,"lat":3,"up":125,"fw":"Oct 27 2026 16:40:01",
+//    "ch":0,"mh":1,"nap":0,"np":0,"nl":0,"xn":1,"rb":0}
 //   cd: chế độ (1 thu ảnh, 2 đếm, 3 giả lập); kh: khung/giây; rs: sóng WiFi (dBm, 0 là chưa nối);
-//   vl: 1 nếu đang dùng vùng lưu trong board; lat: bit 0 lật dọc, bit 1 lật ngang; up: số giây từ lúc bật máy.
+//   vl: 1 nếu đang dùng vùng lưu trong board; lat: bit 0 lật dọc, bit 1 lật ngang; up: số giây từ lúc bật máy;
+//   fw: phiên bản firmware; ch: loại chip (0 ESP32, 9 ESP32-S3); mh: 1 nếu có mô hình; nap, np, nl: tình trạng
+//   nạp qua WiFi; xn: 0 khi đang chạy bản mới nạp chưa tự xác nhận; rb: 1 nếu lần nạp gần nhất lỗi, đã quay về.
 #pragma once
 #include <WiFi.h>
 #include <WebServer.h>
@@ -25,6 +31,8 @@
 #include <esp_wifi.h>
 #include "cau_hinh_mang.h"
 #include "vung_dem.h"
+#include "danh_tinh.h"
+#include "nap_tu_xa.h"
 
 static WebServer may_chu(80);
 static const uint8_t DIA_CHI_PHAT_CHUNG[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -33,6 +41,7 @@ static bool mang_co_espnow = false;
 static bool mang_co_web = false;
 static float mang_khung_giay = 0;            // chế độ đếm ghi vào đây để báo về trung tâm
 static uint32_t mang_t_trang_thai = 0, mang_t_nhay = 0, mang_t_khoi_dong = 0, mang_t_kenh = 0, mang_t_noi = 0;
+static bool mang_can_nap = false;            // trung tâm vừa ra lệnh nạp firmware mới
 static uint8_t mang_kenh = KENH_WIFI;       // kênh của lần nối WiFi trung tâm gần nhất (trung tâm nối hotspot thì kênh đổi theo hotspot)
 static void (*khiLenhGia)(int s, int l, int emg, int ut) = NULL;   // chế độ giả lập gán hàm này
 
@@ -103,7 +112,7 @@ inline bool mangKhoiTao(bool cho_phep_tu_phat) {
 #endif
   if (!da_noi && cho_phep_tu_phat && TU_PHAT_KHI_KHONG_THAY) {
     char ten[24];
-    snprintf(ten, sizeof(ten), "CAM%d-SaBan", CAM_ID);
+    snprintf(ten, sizeof(ten), "CAM%d-SaBan", cam_id);
     WiFi.disconnect(true);
     WiFi.mode(WIFI_AP);
     if (!WiFi.softAP(ten, MAT_KHAU_WIFI, KENH_WIFI)) return false;
@@ -126,29 +135,57 @@ inline bool mangKhoiTao(bool cho_phep_tu_phat) {
   return mang_co_espnow;
 }
 
+inline void mangGuiTrangThai();
+inline void mangGuiTrangThaiBao() { mangGuiTrangThai(); }
+inline void mangGanBaoNap() {
+  nap_bao = mangGuiTrangThaiBao;
+}
+
 inline bool mangGui(const char *nd) {
   if (!mang_co_espnow) return false;
   return esp_now_send(DIA_CHI_PHAT_CHUNG, (const uint8_t *)nd, strlen(nd)) == ESP_OK;
 }
 
 inline void mangGuiTrangThai() {
-  char b[200];
+  char b[248];
   bool noi = WiFi.status() == WL_CONNECTED;
   String ip = mang_tu_phat ? WiFi.softAPIP().toString() : (noi ? WiFi.localIP().toString() : String(""));
-  snprintf(b, sizeof(b), "{\"tt\":1,\"id\":%d,\"cd\":%d,\"ip\":\"%s\",\"kh\":%.1f,\"rs\":%d,\"vl\":%d,\"lat\":%d,\"up\":%lu}",
-           CAM_ID, CHE_DO, ip.c_str(), mang_khung_giay, noi ? (int)WiFi.RSSI() : 0, vung_da_luu ? 1 : 0,
-           lat_doc | (lat_ngang << 1), (unsigned long)(millis() / 1000));
+  snprintf(b, sizeof(b), "{\"tt\":1,\"id\":%d,\"cd\":%d,\"ip\":\"%s\",\"kh\":%.1f,\"rs\":%d,\"vl\":%d,\"lat\":%d,\"up\":%lu,"
+           "\"fw\":\"%s\",\"ch\":%d,\"mh\":%d,\"nap\":%u,\"np\":%u,\"nl\":%d,\"xn\":%d,\"rb\":%d}",
+           cam_id, che_do, ip.c_str(), mang_khung_giay, noi ? (int)WiFi.RSSI() : 0, vung_da_luu ? 1 : 0,
+           lat_doc | (lat_ngang << 1), (unsigned long)(millis() / 1000), phienBanFw(), (int)CONFIG_IDF_FIRMWARE_CHIP_ID,
+           CO_MO_HINH, nap_tt, nap_pt, nap_ma_loi, nap_cho_xn ? 0 : 1, nap_co_ban_loi ? 1 : 0);
   mangGui(b);
 }
 
 inline void mangXuLyLenh(const char *nd) {
   int den = laySoJson(nd, "den", 0);
-  if (den != 0 && den != CAM_ID) return;
+  if (den != 0 && den != cam_id) return;
   if (strstr(nd, "\"lenh\":\"xem\"")) { mangGuiTrangThai(); }
   else if (strstr(nd, "\"lenh\":\"nhay\"")) { mang_t_nhay = millis() | 1; }
   else if (strstr(nd, "\"lenh\":\"khoidong\"")) {
     Serial.println("Trung tâm yêu cầu khởi động lại.");
-    mang_t_khoi_dong = (millis() + 200 + 150 * CAM_ID) | 1;   // lệch nhau một chút để 4 camera không bật cùng lúc
+    mang_t_khoi_dong = (millis() + 200 + 150 * cam_id) | 1;   // lệch nhau một chút để 4 camera không bật cùng lúc
+  }
+  else if (strstr(nd, "\"lenh\":\"chedo\"")) {
+    int cd = laySoJson(nd, "cd", 0);
+    if (!cheDoHopLe(cd)) return;
+    if (cd == CHE_DO_DEM && !CO_MO_HINH) { Serial.println("Firmware này chưa có mô hình nên không chạy được chế độ đếm."); mangGuiTrangThai(); return; }
+    danhTinhDat("cd", (uint8_t)cd);
+    Serial.printf("Trung tâm yêu cầu đổi sang chế độ %d: lưu vào board rồi khởi động lại.\n", cd);
+    mang_t_khoi_dong = (millis() + 300) | 1;
+  }
+  else if (strstr(nd, "\"lenh\":\"doiid\"")) {
+    int moi = laySoJson(nd, "moi", 0);
+    if (den != cam_id || moi < 1 || moi > 4) return;        // chỉ nhận khi gửi đích danh
+    danhTinhDat("id", (uint8_t)moi);
+    Serial.printf("Đổi thành CAM %d: lưu vào board rồi khởi động lại.\n", moi);
+    mang_t_khoi_dong = (millis() + 300) | 1;
+  }
+  else if (strstr(nd, "\"lenh\":\"nap\"")) {
+    if (den != cam_id || nap_tt == 1) return;               // nạp từng camera một, chỉ khi gửi đích danh
+    if (WiFi.status() != WL_CONNECTED) { nap_tt = 3; nap_ma_loi = -1; mangGuiTrangThai(); return; }
+    mang_can_nap = true;
   }
   else if (strstr(nd, "\"lenh\":\"vungmacdinh\"")) { vungXoa(); Serial.println("Đã về vùng đếm trong cau_hinh.h."); mangGuiTrangThai(); }
   else if (strstr(nd, "\"lenh\":\"lat\"")) {
@@ -176,6 +213,11 @@ inline void mangChay() {
   }
 #endif
   if (mang_t_khoi_dong && (int32_t)(bay_gio - mang_t_khoi_dong) >= 0) ESP.restart();
+  if (mang_can_nap) { mang_can_nap = false; napTaiTuTrungTam(); }   // chặn tới khi tải xong; xong thì khởi động lại
+  if (napXacNhanChay(mang_co_espnow)) {
+    Serial.printf("Bản firmware mới %s chạy ổn: đã xác nhận.\n", phienBanFw());
+    mangGuiTrangThai();
+  }
 #if NOI_WIFI_TRUNG_TAM
   // Chưa nối (hoặc rớt) mà không đang thử nối thì giữ radio ở KENH_WIFI để ESP-NOW không lạc kênh.
   if (!mang_tu_phat && bay_gio - mang_t_kenh >= 1000) {

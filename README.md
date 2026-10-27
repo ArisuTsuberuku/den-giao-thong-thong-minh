@@ -22,8 +22,9 @@ Code cho mô hình ngã tư trên sa bàn Lần 08: 4 camera ESP32-CAM (loại A
 - Bộ tự học, thử trên một ngã tư thu nhỏ trong `thu_quyet_dinh.js`: không có xe rẽ trái thì cả hai trục sang "thẳng trước" sau 3 phút; một nửa xe làn trong rẽ trái thì giữ "riêng"; đổi dòng xe giữa chừng thì đổi kiểu theo sau 7–9 phút.
 - Mô phỏng 30 phút với 6 kiểu dòng xe, 3 cỡ xe và cả hai loại camera (lí tưởng, ESP32-CAM): không có hai xe đè lên nhau, không xe nào vượt đèn đỏ, không xe nào đứng yên quá 5 phút, cả 4 loại xe ưu tiên đều qua được. Xe ưu tiên qua vạch dừng thì đèn chuyển vàng sau 1,5 s với camera lí tưởng, sau 3–4 s với camera ESP32-CAM.
 - Cả hai firmware biên dịch được với lõi `esp32` 2.0.9 và 3.3.12: board trung tâm cho ESP32-S3, firmware camera cho cả ESP32-CAM (AI-Thinker) lẫn ESP32-S3-CAM. Chế độ đếm của camera mới biên dịch với thư viện Edge Impulse giả (`kiem_thu/gia_ei`).
+- Nạp qua WiFi (`thu_mang.cpp`, chạy cả với tệp `.bin` thật vừa biên dịch): trung tâm nhận đúng tệp của mình và của camera, từ chối tệp sai chip, tệp của board kia, tệp không phải firmware, tệp cắt dở. Xe ưu tiên ảo được mở xanh sau 5–6 s và trả đèn 4 s sau khi mở; dòng xe giả cho hướng không có camera chạy 10 phút không ùn quá 4 xe mỗi làn; thông số đèn ngoài giới hạn an toàn bị từ chối. Trang web của trung tâm và của camera mở trong trình duyệt không lỗi, mọi nút gửi đúng lệnh, không tràn ngang trên điện thoại.
 
-Chưa kiểm tra, vì cần phần cứng thật: nạp vào board, độ sáng đèn ở 3,3 V, ảnh từ OV2640, đường truyền ESP-NOW, mô hình nhận diện (kể cả việc phân biệt 4 loại xe ưu tiên) và tốc độ chạy mô hình trên ESP32-CAM. Camera trong mô phỏng tính đúng hình học và nhịp xử lí, còn tỉ lệ nhận đúng của mô hình là giả định. Chế độ tự học mới chạy trong mô phỏng. Danh sách việc cần thử nằm ở cuối mỗi phần dưới đây.
+Chưa kiểm tra, vì cần phần cứng thật: nạp vào board, nạp qua WiFi và quay về bản cũ trên board thật, độ sáng đèn ở 3,3 V, ảnh từ OV2640, đường truyền ESP-NOW, mô hình nhận diện (kể cả việc phân biệt 4 loại xe ưu tiên) và tốc độ chạy mô hình trên ESP32-CAM. Camera trong mô phỏng tính đúng hình học và nhịp xử lí, còn tỉ lệ nhận đúng của mô hình là giả định. Chế độ tự học mới chạy trong mô phỏng. Danh sách việc cần thử nằm ở cuối mỗi phần dưới đây.
 
 ## 1. Web mô phỏng
 
@@ -218,7 +219,7 @@ Sửa luật thì sửa cả `firmware/trung_tam/quyet_dinh.h` và `web/quyet_di
 
 ## 3. Board trung tâm (`firmware/trung_tam`)
 
-**Arduino IDE:** cài lõi `esp32` của Espressif và thư viện `ArduinoJson`. Chọn Board `ESP32S3 Dev Module`, Flash Size `16MB`, PSRAM `OPI PSRAM`, USB CDC On Boot `Disabled`. Cắm cáp vào cổng ghi `COM` trên board. Serial Monitor 115200, kết thúc dòng `Newline`.
+**Arduino IDE:** cài lõi `esp32` của Espressif và thư viện `ArduinoJson`. Chọn Board `ESP32S3 Dev Module`, Flash Size `16MB`, Partition Scheme `16M Flash (3MB APP/9.9MB FATFS)`, PSRAM `OPI PSRAM`, USB CDC On Boot `Disabled`. Bảng phân vùng này có hai phân vùng ứng dụng để nạp qua WiFi và một vùng FATFS để trung tâm giữ tệp firmware camera. Cắm cáp vào cổng ghi `COM` trên board. Serial Monitor 115200, kết thúc dòng `Newline`.
 
 **Nối dây** (sửa được trong `cau_hinh.h`):
 
@@ -248,8 +249,33 @@ GND của nguồn 5 V, board và 8 module đèn nối chung.
 | `xem` | In trạng thái, kiểu chia pha đang dùng, số đếm từng hướng, tỉ lệ mất gói |
 | `xoa` | Bỏ các số đếm đã gõ tay |
 | `thuday` | Lần lượt sáng từng bóng để kiểm tra dây |
+| `uutien` | Thả một xe ưu tiên ảo, hướng và loại ngẫu nhiên. `uutien 2 1` thả xe cứu hỏa ảo vào Hướng 2 (loại 0 là ngẫu nhiên); `boxeao` bỏ hết |
+| `tutha 3` | Cứ 3 phút tự thả một xe ưu tiên ảo (`tutha 0` là tắt) |
+| `donggia 1 35` | Dòng xe giả mật độ 35 % cho hướng không có camera (`donggia 0` là tắt) |
+| `dat vang 3.5` | Đặt một thông số đèn, tính bằng giây (tên thông số ở mục dưới); `thongso` xem, `luuts` lưu vào board, `tsmacdinh` về mặc định |
+| `napcam 0`, `napcam 2`, `napdung` | Nạp firmware camera trung tâm đang giữ cho cả 4 camera lần lượt, hoặc chỉ CAM 2; hủy lịch nạp |
+| `quayve` | Khởi động lại bằng bản firmware trước của trung tâm |
 
 LED trên board: xanh lá là đủ 4 camera, vàng là thiếu camera, xanh dương là đang ưu tiên, đỏ là lỗi an toàn.
+
+**Xe ưu tiên ảo, dòng xe giả, thông số, nhật ký** (để trình diễn và thử khi chưa đủ camera hay chưa có mô hình):
+
+- Xe ưu tiên ảo: bộ điều khiển thấy nó y như camera báo có xe ưu tiên chờ ở làn đó. Được xanh 3 s thì coi như xe đã qua và đèn chuyển vàng như với xe thật. Camera đang báo xe ưu tiên thật ở hướng đó thì xe thật được tính, xe ảo chờ. Xe ảo chờ quá 90 s thì tự bỏ.
+- Dòng xe giả chỉ chạy ở hướng không có camera gửi tin (3 s không có gói); camera gửi tin lại là dùng số thật ngay. Xe giả tới ngẫu nhiên theo mật độ đã chọn và rời đi khi đèn của làn đó xanh, 2 s một xe.
+- Thông số đèn đổi được trên trang web hoặc bằng lệnh `dat`, có tác dụng từ bước sau; ngoài giới hạn an toàn thì bị từ chối:
+
+| Tên | Ý nghĩa | Mặc định | Giới hạn |
+|---|---|---|---|
+| `tmin`, `tmax` | Xanh ngắn nhất, dài nhất (chế độ thích ứng) | 15 s, 90 s | 5–60 s, 10–180 s |
+| `cong` | Cộng thêm mỗi 10 xe thật | 5 s | 0–30 s |
+| `quydoi` | 1 xe mô hình bằng bao nhiêu xe thật | 10 | 1–20 |
+| `vang`, `dotp` | Vàng, đỏ toàn phần | 3 s, 2 s | 3–6 s, 1–5 s |
+| `cdthang`, `cdtrai` | Chế độ cố định: xanh đi thẳng, rẽ trái | 30 s, 15 s | 10–120 s, 5–60 s |
+| `catsom` | Hết xe quá chừng này thì cắt xanh sớm (0: tắt) | 5 s | 0–60 s |
+| `utgiu` | Xe ưu tiên qua rồi, chờ chừng này mới chuyển vàng | 1 s | 0,5–10 s |
+| `uttoida` | Một lần ưu tiên dài tối đa | 60 s | 20–120 s |
+
+- Nhật ký: mọi dòng trung tâm in ra Serial (kế hoạch từng lượt, ưu tiên, mất camera, nạp firmware) cũng hiện ở cuối trang web, 40 dòng gần nhất.
 
 **Việc cần thử trên board thật:**
 
@@ -261,7 +287,7 @@ LED trên board: xanh lá là đủ 4 camera, vàng là thiếu camera, xanh dư
 
 ## 4. Camera (`firmware/camera`)
 
-**Arduino IDE (ESP32-CAM AI-Thinker):** Board `AI Thinker ESP32-CAM`, Partition Scheme `Huge APP (3MB No OTA/1MB SPIFFS)`; PSRAM của board này luôn bật. Nạp qua đế ESP32-CAM-MB (cổng micro USB, chip CH340): nếu báo "Failed to connect" thì giữ nút IO0 trên đế, bấm nút RST trên board camera, thả IO0 rồi nạp lại. Nạp xong bấm RST để chạy.
+**Arduino IDE (ESP32-CAM AI-Thinker):** Board `AI Thinker ESP32-CAM`, Partition Scheme `Minimal SPIFFS (1.9MB APP with OTA)` (bảng này có hai phân vùng ứng dụng để nạp qua WiFi; firmware hiện dùng khoảng 1,1 MB); PSRAM của board này luôn bật. Nạp qua đế ESP32-CAM-MB (cổng micro USB, chip CH340): nếu báo "Failed to connect" thì giữ nút IO0 trên đế, bấm nút RST trên board camera, thả IO0 rồi nạp lại. Nạp xong bấm RST để chạy.
 
 Chân camera trong `cau_hinh.h` theo ESP32-CAM AI-Thinker (`LOAI_BOARD BOARD_ESP32_CAM`, mặc định). Đèn LED trắng ở chân 4 được giữ tắt để không hắt sáng lên sa bàn. Dùng ESP32-S3-CAM thì đổi `LOAI_BOARD` thành `BOARD_ESP32S3_CAM` và chọn Board `ESP32S3 Dev Module`, Flash Size `16MB`, PSRAM `OPI PSRAM`, USB CDC On Boot `Disabled`. Nếu chế độ thu ảnh báo không khởi tạo được camera thì kiểm tra lại cáp dẹt của camera và bảng chân này.
 
@@ -269,7 +295,12 @@ Trên ESP32-CAM, firmware chụp ảnh JPEG rồi giải nén ra RGB trước kh
 
 ESP32-CAM nóng và dễ khởi động lại khi nguồn yếu: cấp 5 V chắc chắn vào chân 5V (không dùng chân 3V3), dây ngắn, tụ 470–1000 µF gần board.
 
-Mỗi board sửa hai dòng trong `cau_hinh.h`: `CAM_ID` (1 đến 4) và `CHE_DO`.
+**Một firmware cho cả 4 camera.** Số CAM và chế độ chạy được lưu trong bộ nhớ của từng board:
+
+- Nạp bằng USB: board lấy `CAM_ID` và `CHE_DO` trong `cau_hinh.h` nếu hai số này khác lần nạp USB trước; giống thì giữ số đang lưu. Vì vậy lần đầu mỗi board vẫn sửa `CAM_ID` (1 đến 4) như cũ.
+- Nạp qua WiFi: board giữ số CAM và chế độ đang có, nên một tệp `.bin` dùng được cho cả 4.
+- Đổi trên trang web (nút "Thu ảnh", "Đếm", "Giả lập", "Đổi số CAM" ở thẻ từng hướng của trung tâm, hoặc trên trang của camera): board lưu lại rồi khởi động lại, không phải nạp.
+- `CO_MO_HINH` trong `cau_hinh.h`: để 0 khi chưa có mô hình (biên dịch không cần thư viện Edge Impulse; chọn chế độ đếm thì camera chạy chế độ thu ảnh và báo "chưa có mô hình"). Cài thư viện mô hình xong thì đặt 1.
 
 **Gắn board:** cạnh dài của khung hình (320 điểm ảnh) phải nằm dọc theo đường, vạch dừng ở một mép ngắn của ảnh. Gắn ngược lại thì camera không thấy chiếc xe đứng sát vạch dừng (xem "Camera ESP32-CAM trong mô phỏng" ở phần 1). Mô phỏng tính với ống kính thường 66° theo đường chéo; board mua về mà là ống kính góc rộng (120° hay 160°) thì khung hình khác hẳn và ảnh méo cong, phải xem lại vị trí gắn.
 
@@ -279,7 +310,7 @@ Mỗi board sửa hai dòng trong `cau_hinh.h`: `CAM_ID` (1 đến 4) và `CHE_D
 2. Trên trang đó: ảnh lộn ngược thì bấm "Xoay 180°" (hoặc tích "Lật dọc", "Lật ngang") trước. Vẽ ROI quanh 2 làn chờ, bấm 4 góc làn ngoài, 4 góc làn trong, rồi bấm "Lưu vào board": vùng mới có tác dụng ngay và còn sau khi tắt máy, không phải nạp lại. Muốn ghi hẳn vào code thì chép dòng cấu hình trang in ra, dán đè lên dòng của camera đó trong `cau_hinh.h`; "Về số mặc định" bỏ vùng và kiểu lật đã lưu trong board. Dòng có sẵn trong `cau_hinh.h` là cấu hình tính từ hình học thiết kế (ROI 277 × 136 bắt đầu ở điểm (43, 52), vạch dừng ở mép phải ảnh, làn trong ở phía trên); dùng nó để so với ảnh thật xem camera có gắn đúng không.
 3. Thu ảnh huấn luyện bằng nút "Lưu 1 ảnh" hoặc "Tự lưu". Ảnh lưu là ảnh ROI, đúng ảnh sẽ đưa vào mô hình.
 4. Trên Edge Impulse: tải ảnh lên, gán nhãn `xe` cho xe thường và `xe_cuu_hoa`, `xe_quan_su`, `xe_cong_an`, `xe_cuu_thuong` cho 4 loại xe ưu tiên (đổi tên được ở `NHAN_UU_TIEN` trong `cau_hinh.h`). Tạo impulse ảnh 96 × 96 với Resize mode `Squash`, khối Object Detection (FOMO), huấn luyện, xuất `Arduino library`. Với ESP32-CAM giữ ảnh 96 × 96: bản 160 × 160 chạy quá chậm trên chip ESP32 (firmware tự lấy kích thước ảnh từ thư viện, nên đổi sang ESP32-S3-CAM thì thử được 160 × 160 mà không phải sửa code). Ảnh 96 × 96 khá nhỏ: nên chọn 4 xe ưu tiên khác hẳn nhau về màu, và chụp đủ ảnh cho từng loại. Nếu mô hình không phân biệt nổi 4 loại thì gộp thành một nhãn `xe_uu_tien`; khi đó trung tâm coi mọi xe ưu tiên là xe cứu thương.
-5. Cài thư viện `.zip` vào Arduino IDE, sửa `THU_VIEN_EI` trong `cau_hinh.h` cho đúng tên tệp `.h`, đổi `CHE_DO` thành `CHE_DO_DEM`, nạp lại.
+5. Cài thư viện `.zip` vào Arduino IDE, sửa `THU_VIEN_EI` trong `cau_hinh.h` cho đúng tên tệp `.h`, đặt `CO_MO_HINH` thành 1. Nạp bằng USB với `CHE_DO` thành `CHE_DO_DEM`, hoặc xuất tệp `.bin` rồi nạp qua WiFi cho cả 4 camera và bấm "Đếm" trên trang trung tâm (xem "Nạp firmware qua WiFi" dưới đây). Mỗi lần huấn luyện lại mô hình chỉ cần làm lại bước này.
 6. Camera in bản tin ra Serial kèm số khung xử lí được mỗi giây (ESP32-CAM: dự kiến 0,7–1), và gửi ESP-NOW ngay sau mỗi khung (không dày hơn 4 gói mỗi giây; ở 1 khung/giây là 1 gói mỗi giây). Ở board trung tâm gõ `xem` để thấy số đếm và tỉ lệ mất gói. Trung tâm coi camera mất tín hiệu khi 3 s không có gói, nên camera phải xử lí được ít nhất chừng 1 khung mỗi 2 giây.
 
 `CHE_DO_GIA_LAP` không cần camera và mô hình: gõ `3 1 0` vào Serial để gửi s = 3, l = 1, emg = 0; gõ `3 1 2 1` để báo có xe cứu hỏa (ut = 1) ở làn trong. Dùng để thử đường truyền ESP-NOW trước khi có mô hình.
@@ -295,6 +326,10 @@ Board trung tâm phát WiFi `TRUNG-TAM-SaBan` (mật khẩu `12345678`) trên đ
 - Mỗi hướng: đèn thẳng và trái đang sáng, số xe hai làn, xe ưu tiên, số gói ESP-NOW và tình trạng camera (chế độ, khung/giây, sóng WiFi, vùng đã lưu hay mặc định, có lật ảnh không). Nút "Chọn vùng đếm" mở trang của camera đó; "Nháy LED" làm LED đỏ trên lưng board nháy 3 giây để biết board nào là CAM mấy; "Gõ tay" đặt số xe cho trung tâm, hoặc cho camera đang ở chế độ giả lập.
 - Cả 4 camera cùng lúc: hỏi trạng thái, nháy LED, lật 180°, khởi động lại 4 camera, hoặc khởi động lại cả 5 board. Mỗi lệnh là một gói ESP-NOW phát chung nên cả 4 camera nhận cùng lúc. "Xem ảnh 4 camera" hiện khung hình của cả 4.
 - Đèn: chế độ cố định hay thích ứng, kiểu chia pha, tua nhanh, cắt xanh sớm, bỏ số gõ tay, thử dây; giống hệt các lệnh gõ ở Serial.
+- Mỗi hướng còn có: nút đổi chế độ camera (thu ảnh, đếm, giả lập), "Đổi số CAM", chọn loại xe ưu tiên ảo rồi "Thả". Thẻ hướng ghi bản firmware camera đang chạy, có mô hình chưa, và "xe ... ảo đang chờ" hay "dòng xe giả".
+- Giả lập: "Thả xe ưu tiên ngẫu nhiên", "Bỏ mọi xe ưu tiên ảo", tự thả mỗi 1, 2, 3 hay 5 phút, dòng xe giả cho hướng không có camera.
+- Thông số đèn: bảng 11 thông số ở phần 3, "Áp dụng", "Lưu vào board", "Về mặc định".
+- Nạp firmware qua WiFi và Nhật ký: xem dưới đây.
 
 Trang web chạy ở lõi 0, điều khiển đèn chạy ở lõi 1, nên mở trang không làm lệch đèn. Tắt hẳn WiFi và trang web: đặt `DUNG_WEB` thành 0 trong `firmware/trung_tam/cau_hinh_mang.h`. Camera không nối WiFi trung tâm: đặt `NOI_WIFI_TRUNG_TAM` thành 0 trong `firmware/camera/cau_hinh_mang.h`.
 
@@ -303,6 +338,28 @@ Trang web chạy ở lõi 0, điều khiển đèn chạy ở lõi 1, nên mở 
 - Hotspot phải ở băng 2,4 GHz (Windows: Settings > Network & internet > Mobile hotspot > Band = 2.4 GHz); ESP32 không bắt được 5 GHz.
 - Một radio chỉ chạy được một kênh: khi nối hotspot, WiFi của trung tâm và ESP-NOW chuyển sang kênh của hotspot. Camera rớt ra rồi tự tìm và nối lại sau vài giây đến 20 giây; trong lúc đó trung tâm báo mất camera và trục đó chạy thời gian cố định, rồi tự trở lại.
 - Không tìm thấy hotspot trong 20 giây thì trung tâm thôi tìm (lúc tìm, radio nhảy qua các kênh làm camera mất tin). Bật hotspot rồi gõ `wifi` ở Serial hoặc bấm "Nối lại hotspot" trên trang.
+
+### Nạp firmware qua WiFi
+
+Dùng khi sửa code hoặc huấn luyện lại mô hình: không phải tháo board ra cắm USB.
+
+**Lấy tệp `.bin`:** trong Arduino IDE chọn đúng Board và Partition Scheme như khi nạp USB, vào Sketch > Export Compiled Binary. Tệp cần dùng là `<tên sketch>.ino.bin` trong thư mục `build/...` cạnh sketch (không lấy tệp có chữ `bootloader`, `partitions` hay `merged`).
+
+**Trung tâm:** mục "Nạp firmware qua WiFi" > chọn tệp > "Nạp cho trung tâm". Trung tâm ghi vào phân vùng còn trống rồi khởi động lại; đèn tắt trong vài giây lúc khởi động lại nên tránh nạp khi đang trình diễn.
+
+**Camera:** chọn tệp camera > "Tải lên trung tâm". Trung tâm giữ tệp này (kể cả khi tắt máy) rồi bấm "Nạp CAM n" hoặc "Nạp cả 4 camera lần lượt". Camera tự tải tệp từ trung tâm qua WiFi, mỗi camera chừng một phút (chưa đo trên board thật); camera này chạy ổn với bản mới thì mới tới camera sau. Trong lúc nạp, hướng đó chạy thời gian cố định như khi mất camera. Có thể nạp thẳng một camera trên trang của nó khi mở được trang camera trực tiếp (`http://192.168.4.11` ...).
+
+**Đường lui, từ trong ra ngoài:**
+
+1. Tệp sai (không phải firmware, sai chip, firmware của board kia, tải dở, sai mã MD5): không ghi gì, bản đang chạy giữ nguyên. Trung tâm kiểm tra ngay lúc nhận tệp; camera kiểm tra lại mã MD5 lúc tải.
+2. Bản mới chạy nhưng không ổn: bản mới phải tự xác nhận trong 2 phút sau khi bật. Trung tâm cần WiFi và ESP-NOW chạy, thấy lại camera nếu trước đó có camera; camera cần chụp được ảnh, nối lại được trung tâm, ở chế độ đếm thì mô hình chạy được một khung. Quá 2 phút là tự quay về bản cũ.
+3. Bản mới treo hoặc khởi động lại liên tục: lần khởi động sau bootloader tự quay về bản cũ (tính năng rollback của ESP-IDF, có sẵn trong lõi `esp32`).
+4. Bản mới chạy ổn nhưng muốn dùng lại bản cũ: nút "Quay về bản trước" (trung tâm) hoặc lệnh `quayve`.
+5. Cuối cùng vẫn nạp được bằng cáp USB như mọi khi.
+
+Một camera nạp lỗi thì trung tâm dừng, không nạp tiếp các camera còn lại; bảng trên trang ghi lí do (tải lỗi, camera không trả lời, bản mới bị trả về bản cũ...).
+
+**Điều kiện:** mỗi camera phải được nạp bằng USB một lần với Partition Scheme `Minimal SPIFFS (1.9MB APP with OTA)` (bảng `Huge APP` cũ không có chỗ cho bản thứ hai; bảng nạp trên trang trung tâm báo "camera không có phân vùng OTA"). Trung tâm dùng `16M Flash (3MB APP/9.9MB FATFS)` như phần 3; lần đầu bật bản này trung tâm định dạng vùng FATFS, mất vài giây.
 
 **Gửi ảnh qua ESP-NOW thì sao:** làm được nhưng không nên. Một gói ESP-NOW chỉ 250 byte, một ảnh JPEG 320 × 240 khoảng 8–15 KB tức 40–60 gói, phải tự đánh số, ghép và gửi lại gói mất (gói phát chung không có xác nhận); 4 camera cùng gửi sẽ chiếm sóng và làm trễ bản tin đếm xe. Ảnh chỉ cần lúc chọn vùng và xem thử, nên đi bằng WiFi như trên; ESP-NOW chỉ chở bản tin đếm xe và lệnh.
 
@@ -314,7 +371,7 @@ Cần Node.js và g++:
 sh kiem_thu/chay_tat_ca.sh
 ```
 
-Bài cuối (mô phỏng xe) mất khoảng 20 phút. Bảng khảo sát kiểu chia pha chạy riêng bằng `node kiem_thu/khao_sat_kieu_pha.js`, mất khoảng nửa giờ.
+Bài 4 (nạp qua WiFi) nhận thêm tệp `.bin` thật nếu muốn: `thu_mang <trung_tam.ino.bin> <camera ESP32.bin> <camera ESP32-S3.bin>`. Bài cuối (mô phỏng xe) mất khoảng 20 phút. Bảng khảo sát kiểu chia pha chạy riêng bằng `node kiem_thu/khao_sat_kieu_pha.js`, mất khoảng nửa giờ.
 
 ## 6. Việc để sau
 
@@ -323,3 +380,4 @@ Bài cuối (mô phỏng xe) mất khoảng 20 phút. Bảng khảo sát kiểu 
 - Camera: đo số khung/giây thật của ESP32-CAM với mô hình 96 × 96 ảnh màu, đo tỉ lệ nhận đúng thật rồi đưa vào mô phỏng thay cho giả định 95 %.
 - Bộ quyết định mức 3 (học máy).
 - Nối web với board qua Firebase Realtime Database.
+- Nạp qua WiFi: thử trên board thật cả 5 đường lui (tệp sai, bản không tự xác nhận, bản treo, quay về, USB); đo thời gian nạp một camera.
