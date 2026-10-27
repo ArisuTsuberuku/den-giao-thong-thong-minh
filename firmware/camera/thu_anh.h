@@ -26,6 +26,7 @@ pre{background:#eef1ec;padding:8px;border-radius:4px;white-space:pre-wrap;word-b
 input[type=number]{width:4em;font:inherit}.mo{color:#58635b;font-size:13px}
 </style></head><body>
 <h1>Camera Hướng <span id="so"></span>: thu ảnh và chỉnh vùng đếm</h1>
+<p class="mo" id="bo"></p>
 <p class="mo">Khung xanh lá là ROI, xanh dương là làn ngoài (s), hồng là làn trong (l). Đường liền là số đang nạp trong board, đường đứt là số vừa vẽ.</p>
 <div class="hai">
 <div class="o"><h2>Toàn khung 320 × 240</h2>
@@ -42,6 +43,11 @@ input[type=number]{width:4em;font:inherit}.mo{color:#58635b;font-size:13px}
 <p><label><input type="checkbox" id="tu_dong"> Tự lưu mỗi <input type="number" id="giay" value="2" min="1" max="60"> giây</label></p>
 <p>Đã lưu: <b id="dem">0</b> ảnh (vào thư mục Tải xuống của máy tính)</p>
 <p class="mo">Chỉ thu ảnh huấn luyện sau khi ROI đã đúng và đã nạp lại. Chụp đủ các trường hợp: 0 đến 4 xe mỗi làn, có xe ưu tiên, và cả lúc đèn đỏ, vàng, xanh.</p></div>
+<div class="o"><h2>Board</h2>
+<p>Chế độ: <button data-cd="1">Thu ảnh</button><button data-cd="2">Đếm</button><button data-cd="3">Giả lập</button> <button id="doi_id">Đổi số CAM</button></p>
+<p class="mo">Đổi chế độ hay số CAM thì board lưu lại rồi khởi động lại (khoảng 10 giây).</p>
+<p id="nap_khoi">Nạp firmware: <input type="file" id="f_nap" accept=".bin"> <button id="nut_nap" class="chon">Nạp</button> <span id="tb_nap" class="mo"></span></p>
+<p class="mo">Tệp camera.ino.bin xuất từ Arduino IDE (Sketch &gt; Export Compiled Binary). Camera kiểm tra tệp trước khi ghi; bản mới không chạy ổn trong 2 phút thì tự quay về bản cũ. Có trung tâm thì nên nạp trên trang trung tâm.</p></div>
 </div>
 <script>
 var CH=null,ve={roi:null,ngoai:[],trong:[]},cong_cu='',keo=null,dem=0;
@@ -57,7 +63,9 @@ function veLai(){if(anh)c.drawImage(anh,0,0,640,480);if(!CH)return;
  tuGiac(ve.ngoai,'#40c4ff',true);tuGiac(ve.trong,'#ff78dc',true);c.setLineDash([])}
 function so20(){var r=ve.roi||CH.roi,a=ve.ngoai.length==4?ve.ngoai:CH.ngoai,b=ve.trong.length==4?ve.trong:CH.trong;
  return r.concat([].concat.apply([],a),[].concat.apply([],b)).join(',')}
+var CD=['','thu ảnh','đếm','giả lập'];
 function napCH(){return fetch('cau_hinh.json?t='+Date.now()).then(function(r){return r.json()}).then(function(d){CH=d;$('so').textContent=d.id;$('so2').textContent=d.id;
+ $('bo').innerHTML='CAM '+d.id+' · chế độ '+CD[d.cd]+(d.bl?' (đã chọn chế độ đếm nhưng firmware chưa có mô hình)':'')+' · firmware bản '+d.fw+(d.mh?'':' · chưa có mô hình')+(d.xn?'':' · <b>bản mới, đang tự kiểm tra</b>')+(d.rb?' · <b>lần nạp gần nhất lỗi, đã quay về bản này</b>':'');
  $('nguon').textContent=d.luu?'vùng đã lưu trong board':'số trong cau_hinh.h';$('ld').checked=!!d.ld;$('ln').checked=!!d.ln;inDong();veLai()})}
 function lat(doc,ngang){$('tb_vung').textContent='Đang lật ảnh...';fetch('lat',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'doc='+(doc?1:0)+'&ngang='+(ngang?1:0)})
  .then(function(r){return r.text()}).then(function(t){$('tb_vung').textContent=t;return napCH()})}
@@ -86,6 +94,17 @@ function luu(){return fetch('roi.jpg?t='+Date.now()).then(function(r){return r.b
  a.download='cam'+CH.id+'_'+('000'+dem).slice(-4)+'.jpg';document.body.appendChild(a);a.click();a.remove();$('dem').textContent=dem})}
 $('luu').onclick=luu;
 (function lap(){var g=Math.max(1,+$('giay').value||2);setTimeout(function(){($('tu_dong').checked&&CH?luu():Promise.resolve()).catch(function(){}).then(lap)},g*1000)})();
+document.addEventListener('click',function(e){var b=e.target.closest('button');if(!b||!b.dataset.cd)return;
+ if(!confirm('Đổi sang chế độ '+CD[b.dataset.cd]+'? Camera sẽ khởi động lại.'))return;
+ fetch('chedo',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'cd='+b.dataset.cd}).then(function(r){return r.text()}).then(function(t){$('bo').textContent=t})});
+$('doi_id').onclick=function(){var m=prompt('Số CAM mới (1 đến 4):');if(!m||!(+m>=1&&+m<=4))return;
+ fetch('doiid',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'moi='+(+m)}).then(function(r){return r.text()}).then(function(t){$('bo').textContent=t})};
+if(location.pathname.indexOf('/c')==0)$('nap_khoi').innerHTML='Nạp firmware: mở qua trung tâm thì nạp ở mục "Nạp firmware qua WiFi" trên trang trung tâm.';
+else $('nut_nap').onclick=function(){var f=$('f_nap').files[0];if(!f){$('tb_nap').textContent='Chọn tệp .bin trước';return}
+ if(!confirm('Nạp '+f.name+' cho camera này?'))return;var x=new XMLHttpRequest();x.open('POST','nap');
+ x.upload.onprogress=function(e){if(e.lengthComputable)$('tb_nap').textContent='Đang tải lên '+Math.round(e.loaded*100/e.total)+' %'};
+ x.onload=function(){$('tb_nap').textContent=x.responseText};x.onerror=function(){$('tb_nap').textContent='Mất kết nối (nếu đã tải đủ thì camera đang khởi động lại)'};
+ var fd=new FormData();fd.append('f',f,f.name);x.send(fd)};
 napCH().then(function(){layKhung();layRoi()});
 </script></body></html>)HTML";
 
@@ -131,10 +150,11 @@ static void xuLyRoi() {                // ảnh ROI cỡ gốc, để làm dữ 
 
 static void xuLyCauHinh() {
   const CauHinhCam &ch = ch_cam;
-  char b[400];
+  char b[520];
   snprintf(b, sizeof(b),
-           "{\"id\":%d,\"cd\":%d,\"luu\":%d,\"ld\":%d,\"ln\":%d,\"roi\":[%d,%d,%d,%d],\"ngoai\":[[%d,%d],[%d,%d],[%d,%d],[%d,%d]],\"trong\":[[%d,%d],[%d,%d],[%d,%d],[%d,%d]]}",
-           CAM_ID, CHE_DO, vung_da_luu ? 1 : 0, lat_doc, lat_ngang, ch.roi_x, ch.roi_y, ch.roi_w, ch.roi_h,
+           "{\"id\":%d,\"cd\":%d,\"bl\":%d,\"fw\":\"%s\",\"mh\":%d,\"xn\":%d,\"rb\":%d,\"luu\":%d,\"ld\":%d,\"ln\":%d,\"roi\":[%d,%d,%d,%d],\"ngoai\":[[%d,%d],[%d,%d],[%d,%d],[%d,%d]],\"trong\":[[%d,%d],[%d,%d],[%d,%d],[%d,%d]]}",
+           cam_id, che_do, che_do_bi_doi ? 1 : 0, phienBanFw(), CO_MO_HINH, nap_cho_xn ? 0 : 1, nap_co_ban_loi ? 1 : 0,
+           vung_da_luu ? 1 : 0, lat_doc, lat_ngang, ch.roi_x, ch.roi_y, ch.roi_w, ch.roi_h,
            ch.lan_ngoai[0].x, ch.lan_ngoai[0].y, ch.lan_ngoai[1].x, ch.lan_ngoai[1].y,
            ch.lan_ngoai[2].x, ch.lan_ngoai[2].y, ch.lan_ngoai[3].x, ch.lan_ngoai[3].y,
            ch.lan_trong[0].x, ch.lan_trong[0].y, ch.lan_trong[1].x, ch.lan_trong[1].y,
@@ -163,6 +183,28 @@ static void xuLyLat() {
                duoc ? "Đã lật ảnh và lưu vào board. Nhớ vẽ lại ROI và 2 làn." : "Đã lật ảnh nhưng không lưu được vào board.");
 }
 
+static void xuLyCheDo() {
+  int cd = may_chu.arg("cd").toInt();
+  if (!cheDoHopLe(cd)) { may_chu.send(400, "text/plain; charset=utf-8", "Chế độ sai."); return; }
+  if (cd == CHE_DO_DEM && !CO_MO_HINH) {
+    may_chu.send(400, "text/plain; charset=utf-8", "Firmware này chưa có mô hình: cài thư viện Edge Impulse, biên dịch rồi nạp lại.");
+    return;
+  }
+  danhTinhDat("cd", (uint8_t)cd);
+  may_chu.send(200, "text/plain; charset=utf-8", "Đã lưu, camera đang khởi động lại...");
+  delay(500);
+  ESP.restart();
+}
+
+static void xuLyDoiId() {
+  int moi = may_chu.arg("moi").toInt();
+  if (moi < 1 || moi > 4) { may_chu.send(400, "text/plain; charset=utf-8", "Số CAM từ 1 đến 4."); return; }
+  danhTinhDat("id", (uint8_t)moi);
+  may_chu.send(200, "text/plain; charset=utf-8", "Đã lưu, camera khởi động lại thành CAM " + String(moi) + ". Địa chỉ mới: 192.168.4." + String(10 + moi));
+  delay(500);
+  ESP.restart();
+}
+
 static void xuLyXoaVung() {
   vungXoa();
   mangGuiTrangThai();
@@ -180,6 +222,9 @@ inline bool trangWebKhoiTao() {
   may_chu.on("/luu_vung", HTTP_POST, xuLyLuuVung);
   may_chu.on("/xoa_vung", HTTP_POST, xuLyXoaVung);
   may_chu.on("/lat", HTTP_POST, xuLyLat);
+  may_chu.on("/chedo", HTTP_POST, xuLyCheDo);
+  may_chu.on("/doiid", HTTP_POST, xuLyDoiId);
+  may_chu.on("/nap", HTTP_POST, []() { napTrucTiepXong(may_chu); }, []() { napNhanTrucTiep(may_chu); });
   may_chu.begin();
   mang_co_web = true;
   return true;
@@ -188,6 +233,7 @@ inline bool trangWebKhoiTao() {
 // Chế độ thu ảnh: nối WiFi trung tâm (không thấy thì tự phát WiFi riêng) rồi mở trang web.
 inline bool thuAnhKhoiTao() {
   mangKhoiTao(true);
+  mangGanBaoNap();
   if (!WiFi.isConnected() && !mang_tu_phat) return false;
   if (!trangWebKhoiTao()) return false;
   Serial.printf("Mở http://%s để xem ảnh và chỉnh vùng đếm.\n",

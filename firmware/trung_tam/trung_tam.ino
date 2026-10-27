@@ -7,6 +7,9 @@
 //   den.h         xuất chân đèn, có kiểm tra xung đột
 //   nhan_tin.h    nhận ESP-NOW, giải mã JSON, gửi lệnh xuống camera
 //   web.h         phát WiFi "TRUNG-TAM-SaBan", trang điều khiển http://192.168.4.1
+//   nap_tu_xa.h   nạp firmware trung tâm và camera qua WiFi, tự quay về bản cũ nếu bản mới không chạy ổn
+//   xe_ao.h       xe ưu tiên ảo, dòng xe giả (trình diễn, thử khi thiếu camera)
+//   thong_so.h    chỉnh và lưu thông số đèn       nhat_ky.h  nhật ký sự kiện cho trang web
 //   cau_hinh.h    chân, kênh WiFi, thời gian      cau_hinh_mang.h  tên và mật khẩu WiFi, bật tắt trang web
 //
 // Thư viện cần cài: ArduinoJson (Library Manager). Cách nạp và cách thử: xem README.md.
@@ -15,16 +18,22 @@
 #include "dieu_khien.h"
 #include "den.h"
 #include "nhan_tin.h"
+#include "thong_so.h"
+#include "xe_ao.h"
+#include "nhat_ky.h"
 #if DUNG_WEB
 #include "web.h"
 #endif
 
-ThamSo ts = {
-  CHE_DO_BAN_DAU, T_MIN, T_MAX, CONG_THEM, XE_QUY_DOI, T_VANG, T_DO_TOAN_PHAN,
-  CD_THANG, CD_TRAI, MAT_TIN_HIEU, UT_XANH_AN_TOAN, UT_GIU, UT_TOI_DA, CAT_SOM,
-  KIEU_PHA, HOC_CACH_THU, HOC_SO_XE, HOC_NGUONG
-};
+#define TS_MAC_DINH { \
+  CHE_DO_BAN_DAU, T_MIN, T_MAX, CONG_THEM, XE_QUY_DOI, T_VANG, T_DO_TOAN_PHAN, \
+  CD_THANG, CD_TRAI, MAT_TIN_HIEU, UT_XANH_AN_TOAN, UT_GIU, UT_TOI_DA, CAT_SOM, \
+  KIEU_PHA, HOC_CACH_THU, HOC_SO_XE, HOC_NGUONG }
+ThamSo ts = TS_MAC_DINH;
 DieuKhien dk(&ts);
+GiaLap gl;                        // xe ưu tiên ảo, dòng xe giả
+uint32_t t_tin_cam[5];            // millis() lúc nhận bản tin đếm gần nhất của từng camera
+bool co_espnow = false;
 
 uint32_t he_so_tua = HE_SO_TUA_NHANH;
 uint32_t t_dieu_khien = 0;        // đồng hồ của bộ điều khiển (ms); chạy nhanh hơn millis() khi tua
@@ -61,78 +70,79 @@ const char *tenTruc(uint8_t truc) {
   return truc ? "trục ngang" : "trục dọc";
 }
 
-void inThoiGian() {
-  Serial.printf("[%7.1f s] ", t_dieu_khien / 1000.0);
+void inThoiGian(Print &ra = Serial) {
+  ra.printf("[%7.1f s] ", t_dieu_khien / 1000.0);
 }
 
-void inToHop(uint8_t m) {
+void inToHop(uint8_t m, Print &ra = Serial) {
   bool dau = true;
   for (int h = 1; h <= 4; h++) {
     bool thang = m & bitThang(h), trai = m & bitTrai(h);
     if (!thang && !trai) continue;
-    if (!dau) Serial.print(" + ");
+    if (!dau) ra.print(" + ");
     dau = false;
-    Serial.printf("H%d %s", h, (thang && trai) ? "thẳng và trái" : (thang ? "thẳng" : "trái"));
+    ra.printf("H%d %s", h, (thang && trai) ? "thẳng và trái" : (thang ? "thẳng" : "trái"));
   }
-  if (dau) Serial.print("đỏ toàn phần");
+  if (dau) ra.print("đỏ toàn phần");
 }
 
-void inSoDem() {
+void inSoDem(Print &ra = Serial) {
   for (int h = 1; h <= 4; h++) {
-    if (dk.conHan(h, t_dieu_khien)) Serial.printf(" H%d %u/%u", h, dk.dem[h].s, dk.dem[h].l);
-    else Serial.printf(" H%d mất tín hiệu", h);
+    if (dk.conHan(h, t_dieu_khien)) ra.printf(" H%d %u/%u", h, dk.dem[h].s, dk.dem[h].l);
+    else ra.printf(" H%d mất tín hiệu", h);
   }
 }
 
 void khiSuKien(uint8_t loai, uint8_t dl) {
-  inThoiGian();
+  inThoiGian(nk);
   switch (loai) {
     case SK_CHU_KI:
-      if (dk.che_do_kh == CHE_DO_CO_DINH) Serial.printf("Chu kì %lu (cố định).", (unsigned long)dk.chu_ki);
-      else Serial.printf("Lượt %lu (thích ứng, %s).", (unsigned long)dk.chu_ki, tenTruc(trucCuaMatNa(dk.kh.buoc[0].mat_na)));
-      Serial.print(" Số xe làn ngoài/làn trong:");
-      inSoDem();
-      Serial.print(". Kế hoạch: ");
+      if (dk.che_do_kh == CHE_DO_CO_DINH) nk.printf("Chu kì %lu (cố định).", (unsigned long)dk.chu_ki);
+      else nk.printf("Lượt %lu (thích ứng, %s).", (unsigned long)dk.chu_ki, tenTruc(trucCuaMatNa(dk.kh.buoc[0].mat_na)));
+      nk.print(" Số xe làn ngoài/làn trong:");
+      inSoDem(nk);
+      nk.print(". Kế hoạch: ");
       for (int i = 0; i < dk.kh.so_buoc; i++) {
-        if (i) Serial.print(" -> ");
-        inToHop(dk.kh.buoc[i].mat_na);
-        Serial.printf(" %lu s", (unsigned long)(dk.kh.buoc[i].xanh / 1000));
+        if (i) nk.print(" -> ");
+        inToHop(dk.kh.buoc[i].mat_na, nk);
+        nk.printf(" %lu s", (unsigned long)(dk.kh.buoc[i].xanh / 1000));
       }
-      Serial.println();
+      nk.println();
       break;
     case SK_BUOC:
-      Serial.print("Xanh: ");
-      inToHop(dk.xanh);
-      if (dk.ut_huong) Serial.printf(" (ưu tiên %s, xe qua là chuyển vàng)\n", tenXeUuTien(dk.dem[dk.ut_huong].ut));
-      else Serial.printf(" trong %lu s\n", (unsigned long)(dk.dich_xanh / 1000));
+      nk.print("Xanh: ");
+      inToHop(dk.xanh, nk);
+      if (dk.ut_huong) nk.printf(" (ưu tiên %s, xe qua là chuyển vàng)\n", tenXeUuTien(dk.dem[dk.ut_huong].ut));
+      else nk.printf(" trong %lu s\n", (unsigned long)(dk.dich_xanh / 1000));
       break;
     case SK_UU_TIEN:
-      Serial.printf("Camera Hướng %u thấy %s: kết thúc bước đang chạy rồi mở riêng Hướng %u\n", dl, tenXeUuTien(dk.dem[dl].ut), dl);
+      nk.printf("%s Hướng %u thấy %s: kết thúc bước đang chạy rồi mở riêng Hướng %u\n", gl.xe[dl].ut ? "Xe ảo:" : "Camera", dl,
+                tenXeUuTien(dk.dem[dl].ut), dl);
       break;
     case SK_HET_UU_TIEN:
-      Serial.printf("Hết ưu tiên Hướng %u: chuyển vàng ngay, trả đèn cho hướng đang chờ\n", dl);
+      nk.printf("Hết ưu tiên Hướng %u: chuyển vàng ngay, trả đèn cho hướng đang chờ\n", dl);
       break;
     case SK_CAT_SOM:
-      Serial.print("Hết xe ở ");
-      inToHop(dl);
-      Serial.printf(" quá %lu s: cắt xanh sớm\n", (unsigned long)(ts.cat_som / 1000));
+      nk.print("Hết xe ở ");
+      inToHop(dl, nk);
+      nk.printf(" quá %lu s: cắt xanh sớm\n", (unsigned long)(ts.cat_som / 1000));
       break;
     case SK_HOC_THU:
-      Serial.printf("Tự học: lượt này %s chạy thử kiểu \"%s\"\n", tenTruc(dl / 4), tenKieu(dl % 4));
+      nk.printf("Tự học: lượt này %s chạy thử kiểu \"%s\"\n", tenTruc(dl / 4), tenKieu(dl % 4));
       break;
     case SK_HOC_NHAN:
-      Serial.printf("Tự học: %s đổi sang kiểu \"%s\" (thẳng trước đang cần %ld %% thời gian đèn của kiểu riêng)\n", tenTruc(dl / 4),
+      nk.printf("Tự học: %s đổi sang kiểu \"%s\" (thẳng trước đang cần %ld %% thời gian đèn của kiểu riêng)\n", tenTruc(dl / 4),
                     tenKieu(dl % 4), (long)dk.hoc.q[dl / 4]);
       break;
     case SK_HOC_TRA:
-      Serial.printf("Tự học: lượt thử \"thẳng trước\" ở %s cần %ld %% thời gian đèn của kiểu riêng, vẫn giữ \"riêng\"\n", tenTruc(dl / 4),
+      nk.printf("Tự học: lượt thử \"thẳng trước\" ở %s cần %ld %% thời gian đèn của kiểu riêng, vẫn giữ \"riêng\"\n", tenTruc(dl / 4),
                     (long)dk.hoc.q[dl / 4]);
       break;
     case SK_HOC_HUY:
-      Serial.printf("Tự học: bỏ lượt thử ở %s vì có xe ưu tiên hoặc thiếu camera\n", tenTruc(dl));
+      nk.printf("Tự học: bỏ lượt thử ở %s vì có xe ưu tiên hoặc thiếu camera\n", tenTruc(dl));
       break;
     case SK_LOI:
-      Serial.println("LỖI AN TOÀN: tổ hợp đèn xung đột. Tất cả nháy vàng. Bấm RST để chạy lại.");
+      nk.println("LỖI AN TOÀN: tổ hợp đèn xung đột. Tất cả nháy vàng. Bấm RST để chạy lại.");
       break;
   }
 }
@@ -195,22 +205,29 @@ void taoTrangThaiWeb(char *b, size_t co) {
   THEM("],\"h\":[");
   for (int h = 1; h <= 4; h++) {
     const SoDem &d = dk.dem[h];
-    THEM("%s{\"co\":%d,\"s\":%u,\"l\":%u,\"emg\":%u,\"ut\":%u,\"song\":%d,\"tay\":%d,\"nhan\":%lu,\"mat\":%lu}", h > 1 ? "," : "",
-         d.co ? 1 : 0, d.s, d.l, d.emg, d.ut, dk.conHan(h, t_dieu_khien) ? 1 : 0, d.giu ? 1 : 0,
-         (unsigned long)goi[h].so_goi, (unsigned long)goi[h].so_mat);
+    THEM("%s{\"co\":%d,\"s\":%u,\"l\":%u,\"emg\":%u,\"ut\":%u,\"song\":%d,\"tay\":%d,\"nhan\":%lu,\"mat\":%lu,\"ao\":%u,\"gia\":%d}",
+         h > 1 ? "," : "", d.co ? 1 : 0, d.s, d.l, d.emg, d.ut, dk.conHan(h, t_dieu_khien) ? 1 : 0, d.giu ? 1 : 0,
+         (unsigned long)goi[h].so_goi, (unsigned long)goi[h].so_mat, gl.xe[h].ut, gl.dang_gia[h] ? 1 : 0);
   }
   THEM("],\"c\":[");
   for (int h = 1; h <= 4; h++) {
     const TrangThaiCam &c = tt_cam[h];
-    THEM("%s{\"co\":%d,\"ip\":\"%s\",\"cd\":%d,\"kh\":%.1f,\"rs\":%d,\"vl\":%d,\"lat\":%d,\"up\":%lu,\"cach\":%lu}", h > 1 ? "," : "",
-         c.co ? 1 : 0, c.ip, c.cd, c.kh, c.rs, c.vl, c.lat, (unsigned long)c.up, (unsigned long)(c.co ? (millis() - c.t) / 1000 : 0));
+    THEM("%s{\"co\":%d,\"ip\":\"%s\",\"cd\":%d,\"kh\":%.1f,\"rs\":%d,\"vl\":%d,\"lat\":%d,\"up\":%lu,\"cach\":%lu,"
+         "\"fw\":\"%s\",\"ch\":%d,\"mh\":%d,\"nap\":%d,\"np\":%d,\"xn\":%d,\"rb\":%d}", h > 1 ? "," : "",
+         c.co ? 1 : 0, c.ip, c.cd, c.kh, c.rs, c.vl, c.lat, (unsigned long)c.up, (unsigned long)(c.co ? (millis() - c.t) / 1000 : 0),
+         c.fw, c.ch, c.mh, c.nap, c.np, c.xn, c.rb);
   }
+  THEM("],\"tutha\":%lu,\"dong\":%d,\"md\":%u,\"aoqua\":%lu,\"ts\":[", (unsigned long)(gl.tu_tha_ms / 60000), gl.dong_xe ? 1 : 0,
+       gl.mat_do, (unsigned long)gl.so_xe_ao_qua);
+  for (int i = 0; i < SO_MUC_THAM_SO; i++) THEM("%s%lu", i ? "," : "", (unsigned long)(ts.*(MUC_THAM_SO[i].o)));
 #if DUNG_WEB
   uint8_t kenh = 0;
   wifi_second_chan_t phu;
   esp_wifi_get_channel(&kenh, &phu);
-  THEM("],\"wn\":%u,\"wcf\":%d,\"wip\":\"%s\",\"kenh\":%u}", wn_tt, TEN_WIFI_NGOAI[0] ? 1 : 0,
+  THEM("],\"wn\":%u,\"wcf\":%d,\"wip\":\"%s\",\"kenh\":%u,\"nap\":", wn_tt, TEN_WIFI_NGOAI[0] ? 1 : 0,
        wn_tt == 2 ? WiFi.localIP().toString().c_str() : "", kenh);
+  if (n < co) n += napJson(b + n, co - n);
+  THEM("}");
 #else
   THEM("]}");
 #endif
@@ -231,8 +248,15 @@ void inHuongDan() {
   Serial.println("  xem                            in trạng thái và tỉ lệ mất gói");
   Serial.println("  xoa                            bỏ các số đếm đã gõ tay");
   Serial.println("  thuday                         lần lượt sáng từng bóng để kiểm tra dây");
+  Serial.println("  uutien [hướng] [loại] [làn]    thả xe ưu tiên ảo (không ghi gì: ngẫu nhiên); boxeao: bỏ hết");
+  Serial.println("  tutha 3                        cứ 3 phút tự thả một xe ưu tiên ảo (0 là tắt)");
+  Serial.println("  donggia 1 35                   dòng xe giả cho hướng không có camera, mật độ 35 % (donggia 0 là tắt)");
+  Serial.println("  dat vang 3.5                   đặt thông số (giây): tmin tmax cong quydoi vang dotp cdthang cdtrai catsom utgiu uttoida");
+  Serial.println("  thongso | luuts | tsmacdinh    xem, lưu vào board, về mặc định các thông số");
 #if DUNG_WEB
   Serial.println("  wifi                           nối lại hotspot máy tính (TEN_WIFI_NGOAI trong cau_hinh_mang.h)");
+  Serial.println("  napcam 0 | napcam 2 | napdung  nạp firmware camera đang giữ cho mọi camera / CAM 2; hủy lịch");
+  Serial.println("  quayve                         khởi động lại bằng bản firmware trước");
 #endif
   Serial.println();
 }
@@ -245,6 +269,7 @@ void nhanBanTin(const char *chuoi, bool tu_serial) {
     if (tu_serial) Serial.println("Không hiểu bản tin. Ví dụ đúng: {\"id\":1,\"s\":3,\"l\":1,\"emg\":0}");
     return;
   }
+  if (!tu_serial) { t_tin_cam[b.id] = millis(); gl.chenVaoBanTin(b.id, b.emg, b.ut); }
   dk.nhanDem(b.id, b.s, b.l, b.emg, t_dieu_khien, tu_serial, b.ut);
   if (tu_serial) {
     const SoDem &d = dk.dem[b.id];
@@ -299,6 +324,70 @@ void xuLyLenh(char *dong) {
     else Serial.println("Tắt cắt xanh sớm.");
   }
   else if (!strcmp(dong, "xem")) inTrangThai();
+  else if (!strncmp(dong, "uutien", 6)) {
+    int h = 0, loai = 0, lan = 0;
+    sscanf(dong + 6, "%d %d %d", &h, &loai, &lan);
+    int da = gl.tha(h, loai, lan, t_dieu_khien);
+    inThoiGian(nk);
+    if (da) nk.printf("Thả %s ảo vào Hướng %d, làn %s.\n", tenXeUuTien(gl.xe[da].ut), da, gl.xe[da].lan == 2 ? "trong" : "ngoài");
+    else nk.println(h ? "Hướng đó đang có xe ưu tiên ảo chờ." : "Cả 4 hướng đang có xe ưu tiên ảo chờ.");
+  }
+  else if (!strcmp(dong, "boxeao")) { for (int h = 1; h <= 4; h++) gl.bo(h); inThoiGian(nk); nk.println("Đã bỏ mọi xe ưu tiên ảo."); }
+  else if (!strncmp(dong, "tutha", 5)) {
+    int p = atoi(dong + 5);
+    if (p < 0) p = 0;
+    if (p > 30) p = 30;
+    gl.tu_tha_ms = (uint32_t)p * 60000;
+    inThoiGian(nk);
+    if (p) nk.printf("Cứ %d phút tự thả một xe ưu tiên ảo.\n", p); else nk.println("Tắt tự thả xe ưu tiên ảo.");
+  }
+  else if (!strncmp(dong, "donggia", 7)) {
+    int bat = 0, md = gl.mat_do;
+    sscanf(dong + 7, "%d %d", &bat, &md);
+    gl.dong_xe = bat != 0;
+    if (md >= 5 && md <= 95) gl.mat_do = (uint8_t)md;
+    inThoiGian(nk);
+    if (gl.dong_xe) nk.printf("Bật dòng xe giả (mật độ %u %%) cho hướng không có camera.\n", gl.mat_do); else nk.println("Tắt dòng xe giả.");
+  }
+  else if (!strncmp(dong, "dat ", 4)) {
+    char khoa[16] = "", gia_tri[16] = "";
+    sscanf(dong + 4, "%15s %15s", khoa, gia_tri);
+    int k = datThamSo(ts, khoa, gia_tri);
+    inThoiGian(nk);
+    nk.printf("Thông số %s = %s: %s%s\n", khoa, gia_tri, loiThamSo(k), k == 0 ? " (từ bước sau; gõ luuts để lưu vào board)" : "");
+  }
+  else if (!strcmp(dong, "thongso")) {
+    for (int i = 0; i < SO_MUC_THAM_SO; i++) {
+      const MucThamSo &m = MUC_THAM_SO[i];
+      uint32_t v = ts.*(m.o);
+      if (m.la_ms) Serial.printf("  %-8s %6.1f s   %s\n", m.khoa, v / 1000.0, m.ten);
+      else Serial.printf("  %-8s %6lu     %s\n", m.khoa, (unsigned long)v, m.ten);
+    }
+  }
+  else if (!strcmp(dong, "luuts")) { inThoiGian(nk); nk.println(thamSoLuu(ts) ? "Đã lưu thông số, chế độ và kiểu chia pha vào board." : "KHÔNG lưu được thông số."); }
+  else if (!strcmp(dong, "tsmacdinh")) {
+    thamSoXoa();
+    ThamSo md = TS_MAC_DINH;
+    md.mat_tin_hieu = ts.mat_tin_hieu;
+    ts = md;
+    inThoiGian(nk);
+    nk.println("Về thông số mặc định trong cau_hinh.h (đã xóa bản lưu trong board).");
+  }
+#if DUNG_WEB
+  else if (!strncmp(dong, "napcam", 6)) {
+    String ly_do;
+    int so = napXepLich(atoi(dong + 6), ly_do);
+    inThoiGian(nk);
+    if (so > 0) nk.printf("Xếp lịch nạp firmware camera bản %s cho %d camera.%s%s\n", anh_cam.pb, so, ly_do.length() ? " Bỏ qua: " : "", ly_do.c_str());
+    else nk.printf("Không nạp được: %s\n", ly_do.c_str());
+  }
+  else if (!strcmp(dong, "napdung")) { napHuyLich(); inThoiGian(nk); nk.println("Đã hủy các camera chưa tới lượt nạp."); }
+  else if (!strcmp(dong, "quayve")) {
+    const char *ly_do = napQuayVe();
+    if (ly_do) Serial.println(ly_do);
+    else { Serial.println("Khởi động lại bằng bản trước..."); delay(300); ESP.restart(); }
+  }
+#endif
 #if DUNG_WEB
   else if (!strcmp(dong, "wifi")) wifiNgoaiThu();
 #endif
@@ -346,13 +435,30 @@ void ledBao() {
 #endif
 }
 
+#if DUNG_WEB
+void baoNap(int h, const char *cau) {
+  inThoiGian(nk);
+  nk.printf("Nạp CAM %d: %s\n", h, cau);
+}
+#endif
+
 void setup() {
   denKhoiTao();                      // việc đầu tiên: đưa tất cả về đỏ
   Serial.begin(TOC_DO_SERIAL);
-  for (int h = 0; h <= 4; h++) { goi[h].seq_cuoi = -1; goi[h].so_goi = 0; goi[h].so_mat = 0; }
+  for (int h = 0; h <= 4; h++) { goi[h].seq_cuoi = -1; goi[h].so_goi = 0; goi[h].so_mat = 0; t_tin_cam[h] = 0; }
+#if DUNG_WEB
+  napKhoiDong();
+#endif
+  bool co_luu = thamSoNap(ts);
   ts.mat_tin_hieu = MAT_TIN_HIEU * he_so_tua;
-  bool co_espnow = nhanTinKhoiTao();
+  gl.ngau_nhien = esp_random;
+  co_espnow = nhanTinKhoiTao();
   inHuongDan();
+  if (co_luu) Serial.println("Dùng thông số đèn đã lưu trong board (gõ thongso để xem, tsmacdinh để về mặc định).");
+#if DUNG_WEB
+  Serial.printf("Firmware bản %s.%s%s\n", phienBanFw(), nap_cho_xn ? " BẢN MỚI NẠP QUA WIFI: tự kiểm tra trong 2 phút, không ổn thì quay về bản cũ." : "",
+                nap_co_ban_loi ? " (Một bản nạp gần đây bị lỗi, board đã quay về bản này.)" : "");
+#endif
   Serial.printf("ESP-NOW kênh %d: %s. Địa chỉ MAC: %s\n", KENH_WIFI, co_espnow ? "sẵn sàng" : "KHÔNG khởi tạo được",
                 WiFi.macAddress().c_str());
 #if DUNG_WEB
@@ -378,6 +484,10 @@ void loop() {
   while (webLayLenh(dong_web, sizeof(dong_web))) xuLyLenh(dong_web);
 #endif
 
+  bool cam_song[5] = {false, false, false, false, false};
+  for (int h = 1; h <= 4; h++) cam_song[h] = t_tin_cam[h] && bay_gio - t_tin_cam[h] < 3000;
+  gl.chay(dk, t_dieu_khien, cam_song);
+
   dk.capNhat(t_dieu_khien);
 
   uint8_t mau[8];
@@ -387,6 +497,13 @@ void loop() {
   ledBao();
 #if DUNG_WEB
   wifiNgoaiChay();
+  napLichChay(baoNap);
+  {
+    bool thay_cam = nap_so_cam_truoc == 0;
+    for (int h = 1; h <= 4; h++) if (tt_cam[h].co) thay_cam = true;
+    bool khoe = co_espnow && !dk.loi && WiFi.softAPIP() != IPAddress(0, 0, 0, 0) && thay_cam;
+    if (napXacNhanChay(khoe)) { inThoiGian(nk); nk.printf("Bản firmware mới %s chạy ổn: đã xác nhận, không quay về bản cũ nữa.\n", phienBanFw()); }
+  }
   static uint32_t t_web = 0;
   if (bay_gio - t_web >= 500) {
     t_web = bay_gio;

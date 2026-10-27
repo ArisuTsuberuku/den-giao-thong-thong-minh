@@ -5,8 +5,9 @@
 #include <Preferences.h>
 #include "esp_camera.h"
 #include "cau_hinh.h"
+#include "danh_tinh.h"
 
-static CauHinhCam ch_cam = CAU_HINH_CAM[CAM_ID];
+static CauHinhCam ch_cam = CAU_HINH_CAM[CAM_ID];       // vungNap() đặt lại theo cam_id
 static bool vung_da_luu = false;              // true: đang dùng vùng lưu trong board
 // Lật ảnh: mặc định theo LAT_DOC, LAT_NGANG của cau_hinh.h; bấm trên trang web thì lưu vào board.
 // Ảnh lộn ngược 180° (trần nhà ở dưới, chữ bị ngược) thì bật cả hai.
@@ -16,7 +17,7 @@ static bool lat_da_luu = false;
 #define VUNG_PHIEN_BAN 1
 
 inline void vungNap() {
-  ch_cam = CAU_HINH_CAM[CAM_ID];
+  ch_cam = CAU_HINH_CAM[cam_id];
   vung_da_luu = false;
   lat_doc = LAT_DOC; lat_ngang = LAT_NGANG; lat_da_luu = false;
   Preferences p;
@@ -24,7 +25,7 @@ inline void vungNap() {
   uint8_t lat = p.getUChar("lat", 0xFF);       // bit 0: lật dọc, bit 1: lật ngang
   if (lat != 0xFF) { lat_doc = lat & 1; lat_ngang = (lat >> 1) & 1; lat_da_luu = true; }
   CauHinhCam c;
-  if (p.getUChar("pb", 0) == VUNG_PHIEN_BAN && p.getUChar("cam", 0) == CAM_ID &&
+  if (p.getUChar("pb", 0) == VUNG_PHIEN_BAN && p.getUChar("cam", 0) == cam_id &&
       p.getBytes("ch", &c, sizeof(c)) == sizeof(c) && vungHopLe(c, ANH_RONG, ANH_CAO)) {
     ch_cam = c;
     vung_da_luu = true;
@@ -38,7 +39,7 @@ inline bool vungLuu(const CauHinhCam &c) {
   Preferences p;
   if (!p.begin("vung_dem", false)) return false;
   bool duoc = p.putBytes("ch", &c, sizeof(c)) == sizeof(c);
-  duoc = duoc && p.putUChar("cam", CAM_ID) && p.putUChar("pb", VUNG_PHIEN_BAN);
+  duoc = duoc && p.putUChar("cam", cam_id) && p.putUChar("pb", VUNG_PHIEN_BAN);
   p.end();
   if (duoc) { ch_cam = c; vung_da_luu = true; }
   return duoc;
@@ -62,7 +63,7 @@ inline bool latDat(uint8_t doc, uint8_t ngang) {
 inline void vungXoa() {
   Preferences p;
   if (p.begin("vung_dem", false)) { p.clear(); p.end(); }
-  ch_cam = CAU_HINH_CAM[CAM_ID];
+  ch_cam = CAU_HINH_CAM[cam_id];
   vung_da_luu = false;
   lat_da_luu = false;
   lat_doc = LAT_DOC; lat_ngang = LAT_NGANG;

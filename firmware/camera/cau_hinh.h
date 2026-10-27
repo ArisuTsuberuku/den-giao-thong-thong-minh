@@ -1,5 +1,6 @@
-// cau_hinh.h — Mọi thứ cần chỉnh của camera nằm ở đây. Một firmware dùng chung cho 4 board,
-// mỗi board chỉ khác CAM_ID và các số ROI, tứ giác làn của nó.
+// cau_hinh.h — Mọi thứ cần chỉnh của camera nằm ở đây. Một firmware dùng chung cho cả 4 board:
+// số CAM, chế độ chạy, vùng đếm và kiểu lật ảnh của từng board nằm trong bộ nhớ của board đó (NVS),
+// đổi được trên trang web mà không phải nạp lại (xem danh_tinh.h, vung_dem.h).
 // Board: ESP32-CAM loại AI-Thinker (chip ESP32, cảm biến OV2640, đế nạp ESP32-CAM-MB). Vẫn dùng được
 // với ESP32-S3-CAM nếu đổi LOAI_BOARD ở mục 4. Cách chọn trong Arduino IDE: xem README.md.
 #pragma once
@@ -7,6 +8,8 @@
 #include "lan_duong.h"
 
 // ---------- 1) Board này gắn ở hướng nào ----------
+// Số này dùng khi nạp bằng USB: board lưu lại và dùng từ đó. Nạp qua WiFi thì board giữ số đang có,
+// nên một tệp firmware dùng chung được cho cả 4 camera. Đổi số trên trang web của trung tâm ("Đổi số CAM").
 #ifndef CAM_ID
 #define CAM_ID 1                 // 1..4, trùng với số hướng và số cột Đ1..Đ4
 #endif
@@ -15,6 +18,7 @@
 #define CHE_DO_THU_ANH 1         // phát WiFi, xem ảnh trên trình duyệt, lưu ảnh huấn luyện, chỉnh ROI và làn
 #define CHE_DO_DEM 2             // đếm xe theo làn bằng mô hình Edge Impulse, gửi ESP-NOW (cần mục 6)
 #define CHE_DO_GIA_LAP 3         // không cần camera: gửi số đếm gõ từ Serial, để thử đường truyền
+// Như CAM_ID: chế độ này dùng khi nạp bằng USB, sau đó đổi được trên trang web (lưu trong board).
 #ifndef CHE_DO
 #define CHE_DO CHE_DO_THU_ANH
 #endif
@@ -106,6 +110,12 @@ static const CauHinhCam CAU_HINH_CAM[5] = {
 // cho đúng tên tệp .h của thư viện (xem File > Examples, tên có đuôi _inferencing).
 #ifndef THU_VIEN_EI
 #define THU_VIEN_EI <den_giao_thong_inferencing.h>
+#endif
+// Đã cài thư viện mô hình (và sửa THU_VIEN_EI ở trên) thì đặt CO_MO_HINH thành 1: firmware chạy được cả 3 chế
+// độ. Để 0 thì không cần thư viện, firmware chỉ thiếu chế độ đếm (chọn chế độ đếm thì camera chạy chế độ thu ảnh
+// và báo "chưa có mô hình"). Không tự dò được thư viện vì Arduino IDE chỉ thêm thư viện khi thấy lệnh #include.
+#ifndef CO_MO_HINH
+#define CO_MO_HINH 0
 #endif
 #define NGUONG_TIN_CAY 0.5f          // bỏ các ô mô hình không chắc chắn
 // Tên lớp của 4 loại xe ưu tiên lúc gán nhãn trên Edge Impulse, theo đúng thứ tự được mở đèn
